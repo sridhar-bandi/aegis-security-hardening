@@ -1,0 +1,282 @@
+"""Celery tasks for enforcement operations (evaluate, remediate, rollback, dry-run, impact)."""
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import uuid
+from datetime import datetime, timezone
+from typing import Any
+
+from celery import Task
+from redis import Redis
+
+from aegis.config import settings
+from aegis.worker import celery_app
+
+logger = logging.getLogger(__name__)
+
+
+class _AsyncTask(Task):
+    def run_async(self, coro):
+        return asyncio.run(coro)
+
+
+def _publish(redis_client: Redis, channel: str, data: dict) -> None:
+    try:
+        redis_client.publish(channel, json.dumps(data))
+    except Exception as exc:
+        logger.warning("Redis publish failed: %s", exc)
+
+
+def _make_engine():
+    from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+    engine = create_async_engine(settings.DATABASE_URL, echo=False)
+    return engine, async_sessionmaker(engine, expire_on_commit=False)
+
+
+@celery_app.task(bind=True, base=_AsyncTask, name="enforcement.evaluate_instance", max_retries=1)
+def evaluate_instance(self: _AsyncTask, job_id: str, instance_id: str) -> dict:
+    return self.run_async(_evaluate_async(job_id, instance_id))
+
+
+@celery_app.task(bind=True, base=_AsyncTask, name="enforcement.remediate_instance", max_retries=1)
+def remediate_instance(self: _AsyncTask, job_id: str, instance_id: str, rule_ids: list[str] | None = None) -> dict:
+    return self.run_async(_remediate_async(job_id, instance_id, rule_ids))
+
+
+@celery_app.task(bind=True, base=_AsyncTask, name="enforcement.rollback_instance", max_retries=1)
+def rollback_instance(self: _AsyncTask, job_id: str, instance_id: str, rule_ids: list[str] | None = None) -> dict:
+    return self.run_async(_rollback_async(job_id, instance_id, rule_ids))
+
+
+@celery_app.task(bind=True, base=_AsyncTask, name="enforcement.dry_run_instance", max_retries=1)
+def dry_run_instance(self: _AsyncTask, job_id: str, instance_id: str) -> dict:
+    return self.run_async(_dry_run_async(job_id, instance_id))
+
+
+async def _load_instance_and_rules(
+    db,
+    instance_id: str,
+    rule_ids: list[str] | None = None,
+    code_status_filter: str = "approved",
+) -> tuple[Any, list[Any]]:
+    from sqlalchemy import select
+    from aegis.models.solution_instance import SolutionInstance
+    from aegis.models.hardening_profile import ProfileRule, HardeningProfile
+    from aegis.models.policy import PolicyRule
+
+    result = await db.execute(
+        select(SolutionInstance).where(SolutionInstance.id == uuid.UUID(instance_id))
+    )
+    instance = result.scalar_one_or_none()
+    if instance is None:
+        raise ValueError(f"Instance {instance_id} not found")
+
+    query = (
+        select(ProfileRule)
+        .join(HardeningProfile, ProfileRule.profile_id == HardeningProfile.id)
+        .where(HardeningProfile.id == instance.profile_id)
+        .where(ProfileRule.code_status == code_status_filter)
+    )
+    if rule_ids:
+        query = query.where(ProfileRule.id.in_([uuid.UUID(r) for r in rule_ids]))
+
+    pr_result = await db.execute(query)
+    profile_rules = list(pr_result.scalars().all())
+
+    # Join policy rule data
+    enriched = []
+    for pr in profile_rules:
+        pol_result = await db.execute(select(PolicyRule).where(PolicyRule.id == pr.policy_rule_id))
+        pol_rule = pol_result.scalar_one_or_none()
+        enriched.append({
+            "profile_rule_id": str(pr.id),
+            "rule_id": pol_rule.rule_id if pol_rule else "",
+            "title": pol_rule.title if pol_rule else "",
+            "component_type": pr.component_type,
+            "evaluation_code": pr.evaluation_code or "",
+            "remediation_code": pr.remediation_code or "",
+            "rollback_code": pr.rollback_code or "",
+            "saved_state": pr.saved_state or {},
+            "risk_score": pr.risk_score,
+        })
+
+    return instance, enriched
+
+
+async def _update_job_status(db, job_id: str, status: str, result_summary: dict) -> None:
+    from sqlalchemy import update
+    from aegis.models.enforcement_job import EnforcementJob
+    completed_at = datetime.now(timezone.utc) if status in ("completed", "failed") else None
+    await db.execute(
+        update(EnforcementJob)
+        .where(EnforcementJob.id == uuid.UUID(job_id))
+        .values(status=status, result_summary=result_summary, completed_at=completed_at)
+    )
+    await db.commit()
+
+
+async def _evaluate_async(job_id: str, instance_id: str) -> dict:
+    from aegis.services.enforcement.evaluator import Evaluator
+    engine, SessionFactory = _make_engine()
+    redis_client = Redis.from_url(settings.REDIS_URL)
+    channel = f"ws:enforcement:{job_id}"
+
+    async with SessionFactory() as db:
+        try:
+            await _update_job_status(db, job_id, "running", {})
+            _publish(redis_client, channel, {"type": "started", "job_id": job_id, "op": "evaluate"})
+
+            instance, enriched = await _load_instance_and_rules(db, instance_id)
+            config = instance.config_json or {}
+            component_type = config.get("component_type", "VM")
+
+            evaluator = Evaluator()
+            report = evaluator.evaluate(instance_id, component_type, config, enriched)
+
+            summary = {
+                "pass": report.pass_count,
+                "fail": report.fail_count,
+                "total": len(report.results),
+                "details": [
+                    {"rule_id": r.rule_id, "compliant": r.compliant, "details": r.details}
+                    for r in report.results
+                ],
+            }
+            await _update_job_status(db, job_id, "completed", summary)
+            _publish(redis_client, channel, {"type": "completed", **summary})
+            return summary
+        except Exception as exc:
+            logger.exception("evaluate_instance failed: %s", exc)
+            err = {"error": str(exc)}
+            await _update_job_status(db, job_id, "failed", err)
+            _publish(redis_client, channel, {"type": "failed", "error": str(exc)})
+            raise
+        finally:
+            redis_client.close()
+            await engine.dispose()
+
+
+async def _remediate_async(job_id: str, instance_id: str, rule_ids: list[str] | None) -> dict:
+    from sqlalchemy import update
+    from aegis.models.hardening_profile import ProfileRule
+    from aegis.services.enforcement.remediator import Remediator
+    engine, SessionFactory = _make_engine()
+    redis_client = Redis.from_url(settings.REDIS_URL)
+    channel = f"ws:enforcement:{job_id}"
+
+    async with SessionFactory() as db:
+        try:
+            await _update_job_status(db, job_id, "running", {})
+            _publish(redis_client, channel, {"type": "started", "job_id": job_id, "op": "remediate"})
+
+            instance, enriched = await _load_instance_and_rules(db, instance_id, rule_ids)
+            config = instance.config_json or {}
+            component_type = config.get("component_type", "VM")
+
+            remediator = Remediator()
+            report = remediator.remediate(instance_id, component_type, config, enriched)
+
+            # Persist saved_state back to DB
+            for r in report.results:
+                if r.saved_state:
+                    await db.execute(
+                        update(ProfileRule)
+                        .where(ProfileRule.id == uuid.UUID(r.profile_rule_id))
+                        .values(saved_state=r.saved_state)
+                    )
+            await db.commit()
+
+            summary = {
+                "success": report.success_count,
+                "failed": report.fail_count,
+                "total": len(report.results),
+            }
+            await _update_job_status(db, job_id, "completed", summary)
+            _publish(redis_client, channel, {"type": "completed", **summary})
+            return summary
+        except Exception as exc:
+            err = {"error": str(exc)}
+            await _update_job_status(db, job_id, "failed", err)
+            _publish(redis_client, channel, {"type": "failed", "error": str(exc)})
+            raise
+        finally:
+            redis_client.close()
+            await engine.dispose()
+
+
+async def _rollback_async(job_id: str, instance_id: str, rule_ids: list[str] | None) -> dict:
+    from aegis.services.enforcement.rollback import RollbackEngine
+    engine, SessionFactory = _make_engine()
+    redis_client = Redis.from_url(settings.REDIS_URL)
+    channel = f"ws:enforcement:{job_id}"
+
+    async with SessionFactory() as db:
+        try:
+            await _update_job_status(db, job_id, "running", {})
+            _publish(redis_client, channel, {"type": "started", "job_id": job_id, "op": "rollback"})
+
+            instance, enriched = await _load_instance_and_rules(db, instance_id, rule_ids, code_status_filter="approved")
+            config = instance.config_json or {}
+            component_type = config.get("component_type", "VM")
+
+            engine_rb = RollbackEngine()
+            report = engine_rb.rollback(instance_id, component_type, config, enriched)
+
+            summary = {
+                "success": sum(1 for r in report.results if r.success),
+                "failed": sum(1 for r in report.results if not r.success),
+                "total": len(report.results),
+            }
+            await _update_job_status(db, job_id, "completed", summary)
+            _publish(redis_client, channel, {"type": "completed", **summary})
+            return summary
+        except Exception as exc:
+            err = {"error": str(exc)}
+            await _update_job_status(db, job_id, "failed", err)
+            _publish(redis_client, channel, {"type": "failed", "error": str(exc)})
+            raise
+        finally:
+            redis_client.close()
+            await engine.dispose()
+
+
+async def _dry_run_async(job_id: str, instance_id: str) -> dict:
+    from aegis.services.enforcement.impact_assessor import ImpactAssessor
+    from aegis.services.enforcement.dry_run import DryRunEngine
+    engine, SessionFactory = _make_engine()
+    redis_client = Redis.from_url(settings.REDIS_URL)
+    channel = f"ws:enforcement:{job_id}"
+
+    async with SessionFactory() as db:
+        try:
+            await _update_job_status(db, job_id, "running", {})
+            _publish(redis_client, channel, {"type": "started", "job_id": job_id, "op": "dry_run"})
+
+            instance, enriched = await _load_instance_and_rules(db, instance_id, code_status_filter="approved")
+            config = instance.config_json or {}
+            topology = config.get("topology", [])
+
+            assessor = ImpactAssessor()
+            assessor.build_topology(topology)
+            dry_runner = DryRunEngine(assessor)
+            report = dry_runner.run(instance_id, enriched)
+
+            summary = {
+                "safe": len(report.safe_rules),
+                "risky": len(report.risky_rules),
+                "breaking": len(report.breaking_rules),
+                "report": report.model_dump(mode="json"),
+            }
+            await _update_job_status(db, job_id, "completed", summary)
+            _publish(redis_client, channel, {"type": "completed", **summary})
+            return summary
+        except Exception as exc:
+            err = {"error": str(exc)}
+            await _update_job_status(db, job_id, "failed", err)
+            _publish(redis_client, channel, {"type": "failed", "error": str(exc)})
+            raise
+        finally:
+            redis_client.close()
+            await engine.dispose()

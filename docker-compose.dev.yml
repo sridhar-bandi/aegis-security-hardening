@@ -1,0 +1,30 @@
+version: '3.9'
+
+# Development overrides — hot-reload and exposed ports
+services:
+  aegis-api:
+    build:
+      context: ./backend
+      target: builder
+    volumes:
+      - ./backend:/app
+    command: uvicorn aegis.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+      - "5678:5678"   # debugpy port
+
+  aegis-worker:
+    volumes:
+      - ./backend:/app
+    command: celery -A aegis.worker.celery_app worker --loglevel=debug --concurrency=2
+
+  aegis-ui:
+    build: ./frontend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run dev -- --host
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: http://localhost:8000

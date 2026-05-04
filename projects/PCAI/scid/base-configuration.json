@@ -1,0 +1,1014 @@
+{
+  "$comment": "All sensitive values (e.g. passwords, proxy URLs) are encrypted",
+  "infrastructure": {
+    "racks": [
+      {
+        "componentId": "rack-001",
+        "role": "Initial Rack",
+        "pdus": [
+          {
+            "networkConnections": [
+              {
+                "networkName": "Management Network",
+                "purpose": "PDU Management",
+                "ipAddressType": "IPv4",
+                "ipAddress": "172.28.1.11"
+              }
+            ],
+            "componentId": "pdu-001",
+            "hostName": "pdu001"
+          },
+          {
+            "networkConnections": [
+              {
+                "networkName": "Management Network",
+                "purpose": "PDU Management",
+                "ipAddressType": "IPv4",
+                "ipAddress": "172.28.1.12"
+              }
+            ],
+            "componentId": "pdu-002",
+            "hostName": "pdu002"
+          }
+        ],
+        "networkSwitches": [
+          {
+            "role": "OOBM",
+            "networkConnections": [
+              {
+                "networkName": "Management Network",
+                "purpose": "Network Switch Management",
+                "ipAddressType": "IPv4",
+                "ipAddress": "172.28.1.31"
+              }
+            ],
+            "componentId": "switch-001",
+            "hostName": "oobm001"
+          },
+          {
+            "role": "OOBM",
+            "networkConnections": [
+              {
+                "networkName": "Management Network",
+                "purpose": "Network Switch Management",
+                "ipAddressType": "IPv4",
+                "ipAddress": "172.28.1.31"
+              }
+            ],
+            "componentId": "switch-002",
+            "hostName": "oobm001"
+          },
+          {
+            "role": "Compute",
+            "networkConnections": [
+              {
+                "networkName": "Management Network",
+                "purpose": "Network Switch Management",
+                "ipAddressType": "IPv4",
+                "ipAddress": "172.28.1.32"
+              },
+              {
+                "networkName": "Loopback Network",
+                "purpose": "loopback",
+                "ipAddressType": "IPv4",
+                "ipAddress": "172.28.255.1"
+              }
+            ],
+            "specificAttributes": {
+              "ASN": 65101
+            },
+            "componentId": "switch-003",
+            "hostName": "snet-001"
+          },
+          {
+            "role": "Compute",
+            "networkConnections": [
+              {
+                "networkName": "Management Network",
+                "purpose": "Network Switch Management",
+                "ipAddressType": "IPv4",
+                "ipAddress": "172.28.1.33"
+              },
+              {
+                "networkName": "Loopback Network",
+                "purpose": "loopback",
+                "ipAddressType": "IPv4",
+                "ipAddress": "172.28.255.2"
+              }
+            ],
+            "specificAttributes": {
+              "ASN": 65102
+            },
+            "componentId": "switch-004",
+            "hostName": "snet-002"
+          }
+        ],
+        "servers": [
+          {
+            "componentId": "server-001",
+            "networkConnections": [
+              {
+                "networkName": "Management Network",
+                "ipAddressType": "IPv4",
+                "purpose": "iLO Management",
+                "ipAddress": "172.28.1.101"
+              },
+              {
+                "networkName": "Management Network",
+                "ipAddressType": "IPv4",
+                "purpose": "Control Nodes Management",
+                "ipAddress": "172.28.1.2"
+              },
+              {
+                "networkName": "Storage Network",
+                "ipAddressType": "IPv4",
+                "purpose": "Control Nodes Data",
+                "ipAddress": "172.28.2.10"
+              }
+            ],
+            "recoveryKey": "Password!123",
+            "passphrase": "Prostack123!",
+            "hostName": "scs01",
+            "iloHostName": "ilo-scs01"
+          },
+          {
+            "componentId": "server-002",
+            "networkConnections": [
+              {
+                "networkName": "Management Network",
+                "ipAddressType": "IPv4",
+                "purpose": "iLO Management",
+                "ipAddress": "172.28.1.102"
+              },
+              {
+                "networkName": "Management Network",
+                "ipAddressType": "IPv4",
+                "purpose": "Control Nodes Management",
+                "ipAddress": "172.28.1.3"
+              },
+              {
+                "networkName": "Storage Network",
+                "ipAddressType": "IPv4",
+                "purpose": "Control Nodes Data",
+                "ipAddress": "172.28.2.11"
+              }
+            ],
+            "recoveryKey": "Password!123",
+            "passphrase": "Prostack123!",
+            "hostName": "scs02",
+            "iloHostName": "ilo-scs02"
+          },
+          {
+            "componentId": "server-003",
+            "networkConnections": [
+              {
+                "networkName": "Management Network",
+                "ipAddressType": "IPv4",
+                "purpose": "iLO Management",
+                "ipAddress": "172.28.1.103"
+              },
+              {
+                "networkName": "Management Network",
+                "ipAddressType": "IPv4",
+                "purpose": "Control Nodes Management",
+                "ipAddress": "172.28.1.4"
+              },
+              {
+                "networkName": "Storage Network",
+                "ipAddressType": "IPv4",
+                "purpose": "Control Nodes Data",
+                "ipAddress": "172.28.2.12"
+              }
+            ],
+            "recoveryKey": "Password!123",
+            "passphrase": "Prostack123!",
+            "hostName": "scs03",
+            "iloHostName": "ilo-scs03"
+          },
+          {
+            "componentId": "server-004",
+            "networkConnections": [
+              {
+                "networkName": "Management Network",
+                "ipAddressType": "IPv4",
+                "purpose": "iLO Management",
+                "ipAddress": "172.28.1.104"
+              },
+              {
+                "networkName": "Management Network",
+                "ipAddressType": "IPv4",
+                "purpose": "Worker Nodes Management",
+                "ipAddress": "172.28.1.161"
+              },
+              {
+                "networkName": "Storage Network",
+                "ipAddressType": "IPv4",
+                "purpose": "Worker Nodes Data 1",
+                "ipAddress": "172.28.2.21"
+              },
+              {
+                "networkName": "Storage Network",
+                "ipAddressType": "IPv4",
+                "purpose": "Worker Nodes Data 2",
+                "ipAddress": "172.28.2.29"
+              },
+              {
+                "networkName": "GPU Compute Network 1",
+                "ipAddressType": "IPv6",
+                "purpose": "RDMA1",
+                "ipAddress": " "
+              },
+              {
+                "networkName": "GPU Compute Network 2",
+                "ipAddressType": "IPv6",
+                "purpose": "RDMA2",
+                "ipAddress": " "
+              },
+              {
+                "networkName": "Production Network",
+                "ipAddressType": "IPv4",
+                "purpose": "Worker Nodes",
+                "ipAddress": "20.20.20.21"
+              },
+              {
+                "networkName": "GPU Compute Network 3",
+                "purpose": "RDMA3",
+                "ipAddressType": "IPv6",
+                "ipAddress": " "
+              },
+              {
+                "networkName": "GPU Compute Network 4",
+                "purpose": "RDMA4",
+                "ipAddressType": "IPv6",
+                "ipAddress": " "
+              }
+            ],
+            "recoveryKey": "Password!123",
+            "passphrase": "Prostack123!",
+            "hostName": "scs04",
+            "iloHostName": "ilo-scs04"
+          }
+        ],
+        "storageArrays": [
+          {
+            "storageProtocol": "NFS",
+            "role": "GLFS",
+            "clusterName": "PCAI",
+            "psnt": "PCAI",
+            "networkConnections": [
+              {
+                "$comment": "SW MGMT",
+                "networkName": "Management Network",
+                "purpose": "Storage Management",
+                "ipAddressType": "IPv4",
+                "ipAddress": "172.28.1.81"
+              }
+            ],
+            "networkSwitches": [
+              {
+                "role": "GLFS",
+                "networkConnections": [
+                  {
+                    "networkName": "Management Network",
+                    "purpose": "Network Switch Management",
+                    "ipAddressType": "IPv4",
+                    "ipAddress": "172.28.1.34"
+                  }
+                ],
+                "componentId": "switch-005",
+                "hostName": "PCAI-1-A"
+              },
+              {
+                "role": "GLFS",
+                "networkConnections": [
+                  {
+                    "networkName": "Management Network",
+                    "purpose": "Network Switch Management",
+                    "ipAddressType": "IPv4",
+                    "ipAddress": "172.28.1.35"
+                  }
+                ],
+                "componentId": "switch-006",
+                "hostName": "PCAI-1-B"
+              }
+            ],
+            "enclosures": [
+              {
+                "componentId": "enclosure-001",
+                "role": "Compute",
+                "nodes": [
+                  {
+                    "componentId": "cnode-001",
+                    "networkConnections": [
+                      {
+                        "$comment": "Cbox iLO",
+                        "networkName": "Management Network",
+                        "purpose": "iLO Management Storage",
+                        "ipAddressType": "IPv4",
+                        "ipAddress": "172.28.1.131"
+                      },
+                      {
+                        "$comment": "Cbox OS",
+                        "networkName": "Management Network",
+                        "purpose": "Storage Management",
+                        "ipAddressType": "IPv4",
+                        "ipAddress": "172.28.1.82"
+                      }
+                    ]
+                  },
+                  {
+                    "componentId": "cnode-002",
+                    "networkConnections": [
+                      {
+                        "$comment": "Cbox iLO",
+                        "networkName": "Management Network",
+                        "purpose": "iLO Management Storage",
+                        "ipAddressType": "IPv4",
+                        "ipAddress": "172.28.1.132"
+                      },
+                      {
+                        "$comment": "Cbox OS",
+                        "networkName": "Management Network",
+                        "purpose": "Storage Management",
+                        "ipAddressType": "IPv4",
+                        "ipAddress": "172.28.1.83"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "componentId": "enclosure-002",
+                "role": "Storage",
+                "nodes": [
+                  {
+                    "componentId": "dnode-001",
+                    "networkConnections": [
+                      {
+                        "$comment": "Dbox iLO",
+                        "networkName": "Management Network",
+                        "purpose": "iLO Management Storage",
+                        "ipAddressType": "IPv4",
+                        "ipAddress": "172.28.1.133"
+                      },
+                      {
+                        "$comment": "Dbox OS",
+                        "networkName": "Management Network",
+                        "purpose": "Storage Management",
+                        "ipAddressType": "IPv4",
+                        "ipAddress": "172.28.1.84"
+                      }
+                    ]
+                  },
+                  {
+                    "componentId": "dnode-002",
+                    "networkConnections": [
+                      {
+                        "$comment": "Dbox iLO",
+                        "networkName": "Management Network",
+                        "purpose": "iLO Management Storage",
+                        "ipAddressType": "IPv4",
+                        "ipAddress": "172.28.1.134"
+                      },
+                      {
+                        "$comment": "Dbox OS",
+                        "networkName": "Management Network",
+                        "purpose": "Storage Management",
+                        "ipAddressType": "IPv4",
+                        "ipAddress": "172.28.1.85"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "componentId": "stor-001",
+            "hostName": "sstor001"
+          }
+        ]
+      }
+    ]
+  },
+  "infrastructureManagement": {
+    "specificAttributes": {
+      "hypervisorCluster": {
+        "virtualMachines": [
+          {
+            "componentId": "vm-001",
+            "hostName": "ez-master01",
+            "vmName": "ez-master01",
+            "type": "MVM",
+            "networkConnections": [
+              {
+                "networkName": "Management Network",
+                "ipAddressType": "IPv4",
+                "purpose": "Network Management",
+                "ipAddress": "172.28.1.61"
+              }
+            ],
+            "accessCredentials": [
+              {
+                "target": "HOST",
+                "userName": "admin",
+                "password": "Password!234"
+              }
+            ]
+          },
+          {
+            "componentId": "vm-002",
+            "hostName": "ez-master02",
+            "vmName": "ez-master02",
+            "type": "MVM",
+            "networkConnections": [
+              {
+                "networkName": "Management Network",
+                "ipAddressType": "IPv4",
+                "purpose": "Network Management",
+                "ipAddress": "172.28.1.62"
+              }
+            ],
+            "accessCredentials": [
+              {
+                "target": "HOST",
+                "userName": "admin",
+                "password": "Password!234"
+              }
+            ]
+          },
+          {
+            "componentId": "vm-003",
+            "hostName": "ez-master03",
+            "vmName": "ez-master03",
+            "type": "MVM",
+            "networkConnections": [
+              {
+                "networkName": "Management Network",
+                "ipAddressType": "IPv4",
+                "purpose": "Network Management",
+                "ipAddress": "172.28.1.63"
+              }
+            ],
+            "accessCredentials": [
+              {
+                "target": "HOST",
+                "userName": "admin",
+                "password": "Password!234"
+              }
+            ]
+          },
+          {
+            "componentId": "vm-004",
+            "hostName": "ez-fab",
+            "vmName": "ez-fab",
+            "type": "MVM",
+            "networkConnections": [
+              {
+                "networkName": "Management Network",
+                "ipAddressType": "IPv4",
+                "purpose": "Network Management",
+                "ipAddress": "172.28.1.64"
+              }
+            ],
+            "accessCredentials": [
+              {
+                "target": "HOST",
+                "userName": "admin",
+                "password": "Password!234"
+              }
+            ]
+          },
+          {
+            "componentId": "vm-005",
+            "hostName": "dsc-vm01",
+            "vmName": "dsc-vm01",
+            "type": "MVM",
+            "networkConnections": [
+              {
+                "networkName": "Management Network",
+                "ipAddressType": "IPv4",
+                "purpose": "Network Management",
+                "ipAddress": "172.28.1.65"
+              }
+            ],
+            "accessCredentials": [
+              {
+                "target": "HOST",
+                "userName": "admin",
+                "password": "Password!234"
+              }
+            ]
+          },
+          {
+            "componentId": "vm-006",
+            "hostName": "morpheus",
+            "vmName": "morpheus",
+            "type": "MVM",
+            "networkConnections": [
+              {
+                "networkName": "Management Network",
+                "ipAddressType": "IPv4",
+                "purpose": "Network Management",
+                "ipAddress": "172.28.1.66"
+              },
+              {
+                "networkName": "Storage Network",
+                "ipAddressType": "IPv4",
+                "purpose": "Network Management",
+                "ipAddress": "172.28.2.37"
+              }
+            ],
+            "accessCredentials": [
+              {
+                "target": "HOST",
+                "userName": "vmeuser",
+                "password": "Password!234"
+              }
+            ]
+          },
+          {
+            "componentId": "vm-007",
+            "hostName": "ops-ramp-gateway",
+            "vmName": "ops-ramp-gateway",
+            "type": "MVM",
+            "networkConnections": [
+              {
+                "networkName": "Management Network",
+                "ipAddressType": "IPv4",
+                "purpose": "Network Management",
+                "ipAddress": "172.28.1.67"
+              }
+            ],
+            "accessCredentials": [
+              {
+                "target": "SSH",
+                "userName": "gateway-admin",
+                "password": "Op$R@mp!gwub22"
+              }
+            ],
+            "networkSettingsPath": "$.networkSettings"
+          },
+          {
+            "componentId": "vm-008",
+            "hostName": "dl1",
+            "vmName": "dl1",
+            "type": "MVM",
+            "networkConnections": [
+              {
+                "networkName": "Management Network",
+                "ipAddressType": "IPv4",
+                "purpose": "DLH Management",
+                "ipAddress": "172.28.1.192"
+              }
+            ],
+            "accessCredentials": [
+              {
+                "target": "HOST",
+                "userName": "admin",
+                "password": "Password!234"
+              }
+            ]
+          },
+          {
+            "componentId": "vm-009",
+            "hostName": "dl2",
+            "vmName": "dl2",
+            "type": "MVM",
+            "networkConnections": [
+              {
+                "networkName": "Management Network",
+                "ipAddressType": "IPv4",
+                "purpose": "DLH Management",
+                "ipAddress": "172.28.1.193"
+              }
+            ],
+            "accessCredentials": [
+              {
+                "target": "HOST",
+                "userName": "admin",
+                "password": "Password!234"
+              }
+            ]
+          },
+          {
+            "componentId": "vm-010",
+            "hostName": "dl3",
+            "vmName": "dl3",
+            "type": "MVM",
+            "networkConnections": [
+              {
+                "networkName": "Management Network",
+                "ipAddressType": "IPv4",
+                "purpose": "DLH Management",
+                "ipAddress": "172.28.1.194"
+              }
+            ],
+            "accessCredentials": [
+              {
+                "target": "HOST",
+                "userName": "admin",
+                "password": "Password!234"
+              }
+            ]
+          }
+        ]
+      },
+      "networkFabric": {
+        "$comment": "macAddress is same on both the switches, both are unique",
+        "macAddress": "44:38:39:be:ef:aa"
+      },
+      "services": [
+        {
+          "componentId": "service-001",
+          "hostName": "ai-application",
+          "networkConnections": [
+            {
+              "networkName": "Production Network",
+              "ipAddressType": "IPv4",
+              "purpose": "Production Common",
+              "ipAddress": "20.20.20.2"
+            }
+          ]
+        },
+        {
+          "componentId": "service-002",
+          "hostName": "ai-cluster",
+          "networkConnections": [
+            {
+              "networkName": "Management Network",
+              "ipAddressType": "IPv4",
+              "purpose": "Network Management",
+              "ipAddress": "172.28.1.68"
+            }
+          ]
+        },
+        {
+          "componentId": "service-003",
+          "hostName": "edf-metastore-db",
+          "networkConnections": [
+            {
+              "networkName": "Management Network",
+              "ipAddressType": "IPv4",
+              "purpose": "Network Management",
+              "ipAddress": "172.28.1.69"
+            }
+          ]
+        }
+      ],
+      "dataLakeHouse": {
+        "clusterName": "dl",
+        "nodePaths": [
+          "$.infrastructureManagement.specificAttributes.hypervisorCluster.virtualMachines[?(@.componentId=='vm-008')]",
+          "$.infrastructureManagement.specificAttributes.hypervisorCluster.virtualMachines[?(@.componentId=='vm-009')]",
+          "$.infrastructureManagement.specificAttributes.hypervisorCluster.virtualMachines[?(@.componentId=='vm-010')]"
+        ]
+      }
+    }
+  },
+  "networks": [
+    {
+      "$comment": "*****This network config comes from Customer*****",
+      "componentId": "nw-001",
+      "name": "Management Network",
+      "type": "Ethernet",
+      "purposeList": [
+        "Management",
+        "iLO Management",
+        "iLO Management Storage",
+        "PDU Management",
+        "Network Switch Management",
+        "Network Management",
+        "Storage Management",
+        "Control Nodes Management",
+        "Worker Nodes Management",
+        "DLH Management"
+      ],
+      "preferredBandwidthGbps": 10,
+      "maxBandwidthGbps": 100,
+      "gatewayIpAddress": "172.28.1.1",
+      "networkId": "172.28.1.0",
+      "networkMask": "255.255.255.0",
+      "vlanId": 101,
+      "vlanType": "Tagged",
+      "availableStartIP": "172.28.1.2",
+      "availableEndIP": "172.28.1.252",
+      "ipAddressPools": [
+        {
+          "startAddress": "172.28.1.2",
+          "endAddress": "172.28.1.10",
+          "networkName": "Management Network",
+          "purpose": "Control Nodes Management"
+        },
+        {
+          "startAddress": "172.28.1.11",
+          "endAddress": "172.28.1.30",
+          "networkName": "Management Network",
+          "purpose": "PDU Management"
+        },
+        {
+          "startAddress": "172.28.1.31",
+          "endAddress": "172.28.1.60",
+          "networkName": "Management Network",
+          "purpose": "Network Switch Management"
+        },
+        {
+          "startAddress": "172.28.1.61",
+          "endAddress": "172.28.1.80",
+          "networkName": "Management Network",
+          "purpose": "Network Management"
+        },
+        {
+          "startAddress": "172.28.1.81",
+          "endAddress": "172.28.1.100",
+          "networkName": "Management Network",
+          "purpose": "Storage Management"
+        },
+        {
+          "startAddress": "172.28.1.101",
+          "endAddress": "172.28.1.130",
+          "networkName": "Management Network",
+          "purpose": "iLO Management"
+        },
+        {
+          "startAddress": "172.28.1.131",
+          "endAddress": "172.28.1.160",
+          "networkName": "Management Network",
+          "purpose": "iLO Management Storage"
+        },
+        {
+          "startAddress": "172.28.1.161",
+          "endAddress": "172.28.1.191",
+          "networkName": "Management Network",
+          "purpose": "Worker Nodes Management"
+        },
+        {
+          "startAddress": "172.28.1.192",
+          "endAddress": "172.28.1.200",
+          "networkName": "Management Network",
+          "purpose": "DLH Management"
+        }
+      ],
+      "specificAttributes": {
+        "dnsIpAddress": "172.28.1.253",
+        "ntpIpAddress": "172.28.1.253",
+        "proxyUrl": "https://web-proxy.houston.hpecorp.net:8080",
+        "noProxy": "vcfmr.local,localhost,.cluster.local,.svc,127.0.0.1,10.96.0.1,10.96.0.12,10.96.0.0/22,10.224.0.0/19,172.28.1.64,172.28.1.61,172.28.1.62,172.28.1.63",
+        "dnsSearchDomains": "vcfmr.local"
+      }
+    },
+    {
+      "$comment": "*****This network config comes from Customer*****",
+      "componentId": "nw-002",
+      "name": "Storage Network",
+      "type": "Ethernet",
+      "purposeList": [
+        "VIP Pool",
+        "Control Nodes Data",
+        "Worker Nodes Data 1",
+        "Worker Nodes Data 2",
+        "Network Management"
+      ],
+      "networkId": "172.28.2.0",
+      "networkMask": "255.255.255.0",
+      "gatewayIpAddress": "172.28.2.1",
+      "vlanId": 110,
+      "vlanType": "Native",
+      "availableStartIP": "172.28.2.2",
+      "availableEndIP": "172.28.2.254",
+      "ipAddressPools": [
+        {
+          "startAddress": "172.28.2.2",
+          "endAddress": "172.28.2.9",
+          "purpose": "VIP Pool"
+        },
+        {
+          "startAddress": "172.28.2.10",
+          "endAddress": "172.28.2.20",
+          "purpose": "Control Nodes Data"
+        },
+        {
+          "startAddress": "172.28.2.21",
+          "endAddress": "172.28.2.28",
+          "purpose": "Worker Nodes Data 1"
+        },
+        {
+          "startAddress": "172.28.2.29",
+          "endAddress": "172.28.2.36",
+          "purpose": "Worker Nodes Data 2"
+        },
+        {
+          "startAddress": "172.28.2.37",
+          "endAddress": "172.28.2.48",
+          "purpose": "Network Management"
+        }
+      ],
+      "specificAttributes": {
+        "dnsSearchDomains": "vcfmr.local",
+        "vipPoolHostName": "nfs-vip-pool"
+      }
+    },
+    {
+      "$comment": "East West Network - Internal",
+      "componentId": "nw-004",
+      "name": "GPU Compute Network 1",
+      "type": "Ethernet",
+      "purposeList": [
+        "RDMA1"
+      ],
+      "preferredBandwidthGbps": 100,
+      "maxBandwidthGbps": 100,
+      "vlanId": 102,
+      "networkId": "fd7c:efe4:f2c5:0001::1",
+      "prefix": "/64",
+      "vlanType": "Tagged"
+    },
+    {
+      "$comment": "East West Network - Internal",
+      "componentId": "nw-005",
+      "name": "GPU Compute Network 2",
+      "type": "Ethernet",
+      "purposeList": [
+        "RDMA2"
+      ],
+      "preferredBandwidthGbps": 100,
+      "maxBandwidthGbps": 100,
+      "vlanId": 103,
+      "networkId": "fd7c:efe4:f2c5:0002::1",
+      "prefix": "/64",
+      "vlanType": "Tagged"
+    },
+    {
+      "componentId": "nw-006",
+      "name": "Dead Network",
+      "type": "Ethernet",
+      "purposeList": [
+        "Dead Network"
+      ],
+      "preferredBandwidthGbps": 1,
+      "maxBandwidthGbps": 10,
+      "vlanId": 99
+    },
+    {
+      "componentId": "nw-007",
+      "name": "Loopback Network",
+      "type": "Ethernet",
+      "purposeList": [
+        "loopback"
+      ],
+      "preferredBandwidthGbps": 1,
+      "maxBandwidthGbps": 10,
+      "networkId": "172.28.255.0",
+      "networkMask": "255.255.255.248"
+    },
+    {
+      "componentId": "nw-008",
+      "name": "Production Network",
+      "type": "Ethernet",
+      "purposeList": [
+        "Production Common",
+        "Worker Nodes"
+      ],
+      "$comment": "minimum networkmask 255.255.255.0 or greater required. outboundGateway is customer's gateway/firewall for outbound internet access.",
+      "vlanType": "Native",
+      "ipAddressPools": [
+        {
+          "purpose": "Worker Nodes",
+          "startAddress": "20.20.20.21",
+          "endAddress": "20.20.20.60"
+        }
+      ],
+      "specificAttributes": {
+        "dnsIpAddress": "20.20.20.201",
+        "ntpIpAddress": "20.20.20.201",
+        "proxyUrl": "https://web-proxy.houston.hpecorp.net:8080",
+        "noProxy": "vcfmr.local,localhost",
+        "dnsSearchDomains": "vcfmr.local"
+      },
+      "vlanId": 800,
+      "networkId": "20.20.20.0",
+      "networkMask": "255.255.255.0",
+      "preferredBandwidthGbps": 100,
+      "maxBandwidthGbps": 200,
+      "outboundGateway": "20.20.20.1",
+      "availableStartIP": "20.20.20.2",
+      "availableEndIP": "20.20.20.199"
+    },
+    {
+      "$comment": "Internal Storage Network, provisionned by GLFS",
+      "componentId": "nw-009",
+      "name": "Internal Storage Network",
+      "type": "Ethernet",
+      "purposeList": [
+        "RDMA",
+        "NVMeOF"
+      ],
+      "networkId": "172.16.0.0",
+      "networkMask": "255.255.192.0",
+      "preferredBandwidthGbps": 100,
+      "maxBandwidthGbps": 100,
+      "vlanType": "Native",
+      "vlanId": 69,
+      "gatewayIpAddress": "172.16.0.1"
+    },
+    {
+      "$comment": "Docker overlay network",
+      "componentId": "nw-010",
+      "name": "GLFS Docker network",
+      "type": "Ethernet",
+      "purposeList": [
+        "Docker"
+      ],
+      "networkId": "172.17.0.0",
+      "networkMask": "255.255.0.0",
+      "preferredBandwidthGbps": 100,
+      "maxBandwidthGbps": 100,
+      "gatewayIpAddress": "172.17.0.1",
+      "vlanType": "Native"
+    },
+    {
+      "componentId": "nw-011",
+      "name": "Kubernetes Pod Network",
+      "type": "Ethernet",
+      "purposeList": [
+        "Kubernetes Pod"
+      ],
+      "networkId": "10.224.0.0",
+      "networkMask": "255.255.224.0",
+      "gatewayIpAddress": "10.224.0.1",
+      "preferredBandwidthGbps": 100,
+      "maxBandwidthGbps": 100,
+      "vlanType": "Native"
+    },
+    {
+      "componentId": "nw-012",
+      "name": "Kubernetes Service Network",
+      "type": "Ethernet",
+      "purposeList": [
+        "Kubernetes Service"
+      ],
+      "networkId": "10.96.0.0",
+      "networkMask": "255.255.252.0",
+      "gatewayIpAddress": "10.96.0.1",
+      "preferredBandwidthGbps": 100,
+      "maxBandwidthGbps": 100,
+      "vlanType": "Native"
+    },
+    {
+      "$comment": "East West Network - Internal",
+      "componentId": "nw-013",
+      "name": "GPU Compute Network 3",
+      "type": "Ethernet",
+      "purposeList": [
+        "RDMA3"
+      ],
+      "preferredBandwidthGbps": 100,
+      "maxBandwidthGbps": 100,
+      "vlanId": 104,
+      "networkId": "fd7c:efe4:f2c5:0003::1",
+      "prefix": "/64",
+      "vlanType": "Tagged"
+    },
+    {
+      "$comment": "East West Network - Internal",
+      "componentId": "nw-014",
+      "name": "GPU Compute Network 4",
+      "type": "Ethernet",
+      "purposeList": [
+        "RDMA4"
+      ],
+      "preferredBandwidthGbps": 100,
+      "maxBandwidthGbps": 100,
+      "vlanId": 105,
+      "networkId": "fd7c:efe4:f2c5:0004::1",
+      "prefix": "/64",
+      "vlanType": "Tagged"
+    }
+  ],
+  "collaborators": [],
+  "customerSite": {
+    "timeSettings": {
+      "timeZoneOffset": "UTC-10",
+      "dayLightSavingEnabled": false,
+      "timeZoneName": "Adak Standard Time",
+      "region": "AMERICAS"
+    },
+    "uplinkDetails": {},
+    "useExistingGLPWorkspace": true
+  },
+  "hpeIntegrationCenter": {
+    "dnsSettings": {
+      "primaryDnsIpAddress": "1.1.1.1"
+    },
+    "ntpSettings": [
+      {
+        "ipAddress": "1.1.1.1"
+      }
+    ],
+    "proxySettings": {},
+    "cbVmIP": "172.28.1.252"
+  },
+  "createdBy": "priya-lakshmi.muthuswamy@hpe.com",
+  "createdOn": "2026-05-04 06:23:12",
+  "lastUpdatedBy": "priya-lakshmi.muthuswamy@hpe.com",
+  "lastUpdatedOn": "2026-05-04 06:24:28",
+  "cidState": "FACTORY_LOCKED"
+}

@@ -1,0 +1,112 @@
+[
+  {
+    "rule_id": "CIS-ESXI-1.1",
+    "title": "Ensure ESXi host is in Lockdown Mode (Normal or Strict)",
+    "description": "Lockdown Mode prevents direct access to the ESXi host, requiring all management operations to go through vCenter Server. Normal lockdown permits DCUI access; Strict lockdown does not.",
+    "rationale": "Enabling Lockdown Mode reduces the attack surface by centralizing access control through vCenter. Local or direct access bypasses vCenter's audit capabilities.",
+    "severity": "high",
+    "category": "authentication",
+    "target_component_types": ["hypervisor", "vmware-esxi", "esxi"],
+    "check_content": "Navigate to the ESXi host in vCenter → Configure → Security Profile → Lockdown Mode.\nVerify it is set to 'Normal' or 'Strict'.\nCLI: vim-cmd -server <host> hostsvc/advopt/view defaultLockdownMode",
+    "fix_text": "In vCenter: Select host → Configure → Security Profile → Edit Lockdown Mode → Set to 'Normal' or 'Strict'.\nPowerCLI: Get-VMHost <host> | Set-VMHost -State Maintenance; then set lockdown via the vSphere API."
+  },
+  {
+    "rule_id": "CIS-ESXI-1.2",
+    "title": "Ensure SSH service is disabled on ESXi hosts",
+    "description": "The SSH service on ESXi should be disabled unless explicitly required for troubleshooting. SSH access bypasses Lockdown Mode controls.",
+    "rationale": "SSH provides a remote command-line interface that, if left enabled, expands the attack surface. All routine management should be performed through vCenter.",
+    "severity": "high",
+    "category": "service",
+    "target_component_types": ["hypervisor", "vmware-esxi", "esxi"],
+    "check_content": "In vCenter: Select host → Configure → Services → SSH → Verify Status is 'Stopped' and Startup Policy is 'Start and stop manually' or 'Stop unless started manually'.\nESXi Shell: esxcli system maintenanceMode get (check if SSH running)",
+    "fix_text": "In vCenter: Select host → Configure → Services → SSH → Stop the service and set Startup Policy to 'Start and stop manually'.\nPowerCLI: Get-VMHostService -VMHost <host> | Where {$_.Key -eq 'TSM-SSH'} | Stop-VMHostService"
+  },
+  {
+    "rule_id": "CIS-ESXI-1.3",
+    "title": "Ensure ESXi Shell (local DCUI) is disabled or restricted",
+    "description": "The ESXi Shell provides a command-line interface for local management. In production environments, it should be disabled or restricted to prevent unauthorized local access.",
+    "rationale": "The ESXi Shell bypasses normal access controls and can be used to make changes outside of vCenter's visibility and audit trail.",
+    "severity": "medium",
+    "category": "service",
+    "target_component_types": ["hypervisor", "vmware-esxi", "esxi"],
+    "check_content": "In vCenter: Host → Configure → Services → ESXi Shell → Verify service is stopped.\nCheck: esxcli system settings advanced list -o /UserVars/ESXiShellInteractiveTimeOut",
+    "fix_text": "Disable the ESXi Shell service via vCenter: Host → Configure → Services → ESXi Shell → Stop.\nSet timeout: esxcli system settings advanced set -o /UserVars/ESXiShellTimeOut -i 600"
+  },
+  {
+    "rule_id": "CIS-ESXI-2.1",
+    "title": "Ensure NTP is configured and synchronized on ESXi hosts",
+    "description": "ESXi hosts must synchronize time with authoritative NTP servers to ensure accurate timestamps for logs, certificates, and security events.",
+    "rationale": "Inaccurate system time can cause authentication failures (Kerberos), invalidate log correlation, and render certificates invalid. It also hampers forensic investigation.",
+    "severity": "medium",
+    "category": "general",
+    "target_component_types": ["hypervisor", "vmware-esxi", "esxi"],
+    "check_content": "In vCenter: Host → Configure → Time Configuration → Verify NTP servers are configured and NTP service is running.\nCLI: esxcli system ntp get",
+    "fix_text": "In vCenter: Host → Configure → Time Configuration → Edit → Add NTP server IPs → Start NTP service with Startup Policy 'Start and stop with host'.\nCLI: esxcli system ntp set --enabled=true --server=<ntp-ip>"
+  },
+  {
+    "rule_id": "CIS-ESXI-2.2",
+    "title": "Ensure ESXi is configured to send logs to a remote syslog server",
+    "description": "ESXi host logs should be forwarded to a centralized, remote syslog server to preserve audit trails and enable centralized monitoring.",
+    "rationale": "Local logs on ESXi can be overwritten or destroyed if the host is compromised or fails. Remote logging ensures log integrity and supports security monitoring.",
+    "severity": "high",
+    "category": "logging",
+    "target_component_types": ["hypervisor", "vmware-esxi", "esxi"],
+    "check_content": "CLI: esxcli system syslog config get\nVerify 'Remote Host' is set to the syslog server address.\nAlso check vCenter: Host → Configure → Advanced System Settings → Syslog.global.logHost",
+    "fix_text": "Set remote syslog:\nesxcli system syslog config set --loghost='udp://<syslog-server>:514'\nesxcli system syslog reload\nOpen firewall: esxcli network firewall ruleset set --ruleset-id=syslog --enabled=true"
+  },
+  {
+    "rule_id": "CIS-ESXI-3.1",
+    "title": "Ensure the Managed Object Browser (MOB) is disabled",
+    "description": "The Managed Object Browser (MOB) provides an HTTP interface for browsing VMware managed objects. It should be disabled in production environments.",
+    "rationale": "The MOB exposes sensitive hypervisor information and can be exploited to enumerate configurations. It serves no operational purpose in production.",
+    "severity": "medium",
+    "category": "service",
+    "target_component_types": ["hypervisor", "vmware-esxi", "esxi"],
+    "check_content": "CLI: vim-cmd proxysvc/service_list | grep mob\nOr check Advanced Settings: Config.HostAgent.plugins.solo.enableMob = false",
+    "fix_text": "Disable via Advanced Settings in vCenter:\nHost → Configure → Advanced System Settings → Config.HostAgent.plugins.solo.enableMob → Set to 'false'.\nOr: esxcli system settings advanced set -o /Config/HostAgent/plugins/solo/enableMob -s false"
+  },
+  {
+    "rule_id": "CIS-ESXI-3.2",
+    "title": "Ensure ESXi host firewall is configured to restrict access",
+    "description": "The ESXi host firewall should be configured to allow only necessary services from authorized management networks and block all others.",
+    "rationale": "Default firewall rules may allow broad access. Restricting access to management networks reduces exposure to unauthorized hosts attempting to manage the hypervisor.",
+    "severity": "high",
+    "category": "network",
+    "target_component_types": ["hypervisor", "vmware-esxi", "esxi"],
+    "check_content": "CLI: esxcli network firewall ruleset list\nFor each enabled ruleset, verify allowed IP ranges are set:\nesxcli network firewall ruleset allowedip list --ruleset-id=<id>",
+    "fix_text": "Restrict access to management services:\nesxcli network firewall ruleset set --ruleset-id=sshClient --allowed-all=false\nesxcli network firewall ruleset allowedip add --ruleset-id=sshClient --ip-address=<mgmt-network-cidr>"
+  },
+  {
+    "rule_id": "CIS-ESXI-4.1",
+    "title": "Ensure only TLS 1.2 or higher is used for ESXi management",
+    "description": "ESXi management interfaces should be configured to use only TLS 1.2 or higher, disabling older protocols (SSLv3, TLS 1.0, TLS 1.1).",
+    "rationale": "TLS 1.0 and 1.1 have known vulnerabilities (POODLE, BEAST). Enforcing TLS 1.2+ ensures encrypted management traffic is protected against protocol downgrade attacks.",
+    "severity": "high",
+    "category": "tls",
+    "target_component_types": ["hypervisor", "vmware-esxi", "esxi"],
+    "check_content": "Check Advanced Settings: UserVars.ESXiVPsDisabledProtocols\nExpected value should include 'tlsv1,tlsv1.1,sslv3'.\nCLI: esxcli system settings advanced list -o /UserVars/ESXiVPsDisabledProtocols",
+    "fix_text": "Set the disabled protocols:\nesxcli system settings advanced set -o /UserVars/ESXiVPsDisabledProtocols -s 'tlsv1,tlsv1.1,sslv3'\nRestart the hostd service: /etc/init.d/hostd restart"
+  },
+  {
+    "rule_id": "CIS-ESXI-5.1",
+    "title": "Ensure VM disk shrinking and wiping is disabled",
+    "description": "The ability to shrink or wipe virtual machine disks should be disabled to prevent potential data exposure and denial-of-service conditions.",
+    "rationale": "Disk wiping operations are I/O intensive and can fill datastore space, causing denial of service. Disabling this prevents VMs from being used to attack the underlying storage.",
+    "severity": "medium",
+    "category": "general",
+    "target_component_types": ["hypervisor", "vmware-esxi", "esxi"],
+    "check_content": "For each VM, check VMX configuration:\ngrep -i 'isolation.tools.diskWiper.disable\\|isolation.tools.diskShrink.disable' <vmname>.vmx\nBoth should be set to 'TRUE'.",
+    "fix_text": "Edit each VM's .vmx file or set via vCenter (VM → Edit Settings → VM Options → Advanced → Configuration Parameters):\nisolation.tools.diskWiper.disable = TRUE\nisolation.tools.diskShrink.disable = TRUE"
+  },
+  {
+    "rule_id": "CIS-ESXI-5.2",
+    "title": "Ensure VMs are not connected to unauthorized networks (VLAN validation)",
+    "description": "Virtual machine network adapters should only be connected to VLANs that are explicitly authorized. Validate that no VM uses VLAN 4095 (VLAN trunking) unless required.",
+    "rationale": "Unauthorized VLAN access could allow a VM to intercept traffic from other network segments, enabling eavesdropping or lateral movement across security zones.",
+    "severity": "high",
+    "category": "network",
+    "target_component_types": ["hypervisor", "vmware-esxi", "esxi"],
+    "check_content": "In vCenter: Review each port group's VLAN ID.\nVerify no port group has VLAN ID 4095 unless trunking is explicitly authorized.\nPowerCLI: Get-VirtualPortGroup | Select Name, VLanId",
+    "fix_text": "For unauthorized VLANs:\nIn vCenter: Networking → Port Group → Edit → Change VLAN ID to the authorized VLAN.\nRemove VM NICs connected to unauthorized port groups."
+  }
+]

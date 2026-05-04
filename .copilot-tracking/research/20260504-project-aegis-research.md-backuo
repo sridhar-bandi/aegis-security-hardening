@@ -1,0 +1,622 @@
+﻿<!-- markdownlint-disable-file -->
+
+# Task Research Notes: Project Aegis - AI Agentic Security Hardening Solution
+
+## Research Executed
+
+### File Analysis
+
+- `.github/agents/task-researcher.agent.md`
+  - Research specialist agent definition with full toolset access
+- `.github/instructions/task-implementation.instructions.md`
+  - Implementation standards: progressive tracking in `.copilot-tracking/`, plan-driven development with changes file updates
+
+### Code Search Results
+
+- No existing source code found - greenfield project
+- Workspace only contains GitHub agent and instructions configuration files
+- Research conducted from authoritative external sources and technology documentation
+
+### External Research
+
+- #fetch:https://www.open-scap.org/
+  - OpenSCAP is the de-facto standard open-source framework for security compliance - supports OVAL and XCCDF formats, generates ARF/HTML compliance reports, widely used for CIS/STIG/SRG hardening
+- #fetch:https://www.cisecurity.org/cis-benchmarks
+  - CIS Benchmarks provide Level 1/Level 2 hardening guidelines in XCCDF + OVAL format, covering OS, network devices, cloud platforms, hypervisors, and middleware
+- #fetch:https://public.cyber.mil/stigs/
+  - DISA STIGs provided as XCCDF bundles with OVAL evaluation content; SRGs (Security Requirements Guides) are parent documents for STIGs applicable across product families
+- #fetch:https://milvus.io/docs
+  - Milvus is a cloud-native vector database; supports local deployment via Docker Compose; pymilvus Python SDK for integration; used for semantic similarity search over policy rules and remediation context
+- #fetch:https://ollama.com/
+  - Ollama runs LLMs locally (Llama 3, Mistral, CodeLlama, etc.); exposes OpenAI-compatible REST API at http://localhost:11434; ideal for air-gapped/private cloud environments
+- #fetch:https://fastapi.tiangolo.com/
+  - FastAPI is Python async REST framework; native OpenAPI/Swagger docs; WebSocket support for streaming LLM responses; dependency injection for RBAC
+- #fetch:https://docs.celeryq.dev/
+  - Celery is a distributed task queue for Python; used for async enforcement jobs; supports Redis/RabbitMQ as broker; task chaining for evaluate → remediate → rollback workflows
+- #fetch:https://www.ansible.com/
+  - Ansible provides agentless SSH-based automation; vast module library for OS, network, storage, VMware, iLO, BIOS; idempotent playbooks; ideal for remediation and rollback implementation
+- #fetch:https://docs.paramiko.org/
+  - Paramiko is Python SSH library; used for direct SSH connectivity to servers, switches, VMs; supports key-based and password auth; foundation for SSH-based endpoint communication
+- #fetch:https://react.dev/
+  - React 18 for frontend SPA; hooks-based component model; ideal for HITL code review/editor interface; Monaco Editor integration for rule code editing
+- #fetch:https://microsoft.github.io/monaco-editor/
+  - Monaco Editor (VS Code editor component) embeds in React; syntax highlighting for Python/Ansible/Shell; ideal for HITL rule implementation review and editing
+
+### Project Conventions
+
+- Standards referenced: Greenfield project - no existing conventions, conventions will be established
+- Instructions followed: `.github/instructions/task-implementation.instructions.md` - progressive tracking in `.copilot-tracking/`
+
+## Key Discoveries
+
+### Project Structure
+
+This is a greenfield AI Agentic application requiring full-stack development. The system has two discrete operational stages:
+
+**Development Stage** (per Solution Type - e.g., PCAI-Small, PCE-Standard):
+- Policy ingestion and parsing (OVAL/XCCDF/XML/English-text policies)
+- LLM-driven generation of evaluation, remediation, rollback function code per policy rule
+- Human-In-The-Loop (HITL) interface for review/edit/approve of generated code
+- Service/system selection UI (user chooses which components to harden)
+- Saved as a named "Hardening Profile" (unique per Solution Type)
+
+**Enforcement Stage** (per Solution Instance - real deployments with actual IPs/credentials):
+- Load a saved Hardening Profile (from Development Stage)
+- Upload Solution Instance config JSON (actual endpoints, credentials)
+- Execute Evaluation (read-only compliance check)
+- Execute Remediation (with Impact Assessment + Dry-Run guard)
+- Execute Rollback (undo remediation changes)
+- Generate OpenSCAP-compatible compliance reports with graphical dashboard
+
+### Solution Instance Hierarchy (from requirements)
+
+```
+Solution Instance
+├── RACK-0
+│   ├── PDU-00, PDU-01
+│   ├── Switch-00, Switch-01, Switch-02
+│   ├── Server-00
+│   │   ├── iLO-000 (BMC - HTTPS/Redfish API)
+│   │   ├── SRController-000 (HPE SR/MR controller)
+│   │   ├── BIOS-000 (UEFI BIOS - iLO Redfish)
+│   │   ├── hypervisor-000 (VMware ESXi / KVM)
+│   │   ├── VM-000, VM-001 (Guest VMs - SSH/HTTPS)
+│   ├── Server-01 [similar structure]
+│   └── Alletra-10k-00 (Storage - REST API)
+└── RACK-1 [similar structure]
+```
+
+### Implementation Patterns
+
+**Policy Rule Object Model:**
+```python
+class PolicyRule:
+    rule_id: str           # Unique identifier (e.g., CIS-RHEL-1.1.1)
+    title: str
+    description: str
+    rationale: str
+    severity: Literal["critical", "high", "medium", "low", "informational"]
+    category: str          # e.g., "filesystem", "network", "authentication"
+    target_component: str  # e.g., "iLO", "OS", "Switch", "Hypervisor"
+    evaluation_code: str   # LLM-generated Python/Ansible code
+    remediation_code: str  # LLM-generated Python/Ansible code
+    rollback_code: str     # LLM-generated Python/Ansible code
+    status: Literal["pending", "generated", "reviewed", "approved", "rejected"]
+    risk_score: float      # 0.0-10.0 for remediation dry-run
+    hitl_comments: List[str]
+```
+
+**Technology Stack Decision:**
+
+| Layer | Technology | Rationale |
+|-------|-----------|-----------|
+| Backend API | FastAPI (Python 3.12) | Async, OpenAPI docs, WebSocket for streaming, RBAC injection |
+| Task Queue | Celery + Redis | Async enforcement jobs, chaining evaluate→remediate→rollback |
+| LLM Runtime | Ollama (local) + LiteLLM | Air-gapped private cloud, OpenAI-compatible API, CodeLlama for code gen |
+| Vector Store | MilvusDB (Docker) | Policy rule context, remediation patterns, semantic search |
+| Relational DB | PostgreSQL | Workspace, user, policy, solution instance metadata |
+| Frontend | React 18 + TypeScript | SPA with HITL code editor, compliance dashboard |
+| Code Editor | Monaco Editor | Embedded VS Code editor for rule code review/edit |
+| SSH Automation | Paramiko + Ansible | Agentless SSH to servers, switches, VMs |
+| BMC/BIOS Access | python-redfish / hpilo | Redfish API for iLO, BIOS, SRController |
+| Network Devices | Netmiko / NAPALM | Multi-vendor SSH to Aruba switches |
+| Storage Access | REST API clients | HPE Alletra REST API |
+| Compliance Engine | OpenSCAP (oscap CLI) | Policy evaluation via OVAL/XCCDF, ARF report generation |
+| Reporting | OpenSCAP ARF + React charts | Industry-standard reports + graphical RED/Orange/Green dashboard |
+| Containerization | Docker Compose | Local dev; Kubernetes manifests for production |
+| Auth | JWT + OAuth2 | Role-based access: Admin, Security Officer, Auditor, User |
+
+### Complete Examples
+
+**Solution Instance Config JSON Schema:**
+```json
+{
+  "solution_type": "PCAI-Small",
+  "solution_instance_id": "pcai-prod-001",
+  "racks": [
+    {
+      "rack_id": "RACK-0",
+      "components": [
+        {
+          "component_id": "iLO-000",
+          "component_type": "iLO",
+          "hostname": "ilo-server-00.internal",
+          "ip_address": "10.0.1.10",
+          "port": 443,
+          "protocol": "HTTPS",
+          "auth": {
+            "type": "basic",
+            "username": "Administrator",
+            "password_ref": "vault://secret/ilo-000-pass"
+          },
+          "firmware_version": "3.2.0"
+        },
+        {
+          "component_id": "VM-000",
+          "component_type": "VM",
+          "hostname": "vm-000.internal",
+          "ip_address": "10.0.1.100",
+          "port": 22,
+          "protocol": "SSH",
+          "auth": {
+            "type": "key",
+            "username": "svcaccount",
+            "private_key_ref": "vault://secret/vm-000-key"
+          },
+          "os": "RHEL9"
+        }
+      ]
+    }
+  ]
+}
+```
+
+**LLM Code Generation Prompt Pattern:**
+```python
+RULE_CODE_GEN_PROMPT = """
+You are a security hardening expert. Generate Python code for the following security rule.
+The code must work with the provided endpoint type and communication protocol.
+
+Rule ID: {rule_id}
+Rule Title: {rule_title}
+Rule Description: {rule_description}
+Target Component Type: {component_type}  # e.g., iLO, RHEL-OS, ArubaSwitch
+Communication Protocol: {protocol}       # e.g., SSH, HTTPS/Redfish
+Connection Details Template: {connection_template}
+
+Generate three Python functions:
+1. evaluate(connection) -> ComplianceResult  # READ-ONLY, returns PASS/FAIL/ERROR + evidence
+2. remediate(connection) -> RemediationResult  # Apply the fix, save state for rollback
+3. rollback(connection, saved_state) -> RollbackResult  # Restore pre-remediation state
+
+Use paramiko for SSH, requests for HTTPS/REST APIs.
+Include error handling and logging.
+Return structured results matching the ComplianceResult/RemediationResult/RollbackResult schemas.
+"""
+```
+
+**OpenSCAP Report Integration:**
+```bash
+# Generate XCCDF-based evaluation using oscap
+oscap xccdf eval \
+  --profile xccdf_org.ssgproject.content_profile_cis \
+  --results-arf /output/results-arf.xml \
+  --report /output/report.html \
+  /usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml
+```
+
+**Remediation Impact Assessment - Network Topology Model:**
+```python
+class ServiceCommunicationChannel:
+    source_component: str          # e.g., "kubernetes-node-00"
+    target_component: str          # e.g., "vault-service"
+    protocol: str                  # e.g., "TLS 1.2", "IPMI", "SSH"
+    port: int
+    cipher_suites: List[str]
+    tls_versions: List[str]
+    auth_method: str
+    risk_on_hardening: float       # 0.0-10.0 risk score if hardening breaks this channel
+```
+
+### API and Schema Documentation
+
+**REST API Endpoints:**
+
+```
+Workspaces:
+  POST   /api/v1/workspaces
+  GET    /api/v1/workspaces
+  GET    /api/v1/workspaces/{workspace_id}
+  PUT    /api/v1/workspaces/{workspace_id}
+  DELETE /api/v1/workspaces/{workspace_id}
+  POST   /api/v1/workspaces/{workspace_id}/members
+
+Policies:
+  POST   /api/v1/policies/upload         # Upload OVAL/XCCDF/XML/text policy
+  GET    /api/v1/policies
+  GET    /api/v1/policies/{policy_id}
+  GET    /api/v1/policies/{policy_id}/rules
+  DELETE /api/v1/policies/{policy_id}
+  POST   /api/v1/policies/import/github  # Import from GitHub
+  POST   /api/v1/policies/import/sharepoint
+
+Solution Types (Development Stage):
+  POST   /api/v1/solution-types
+  GET    /api/v1/solution-types
+  GET    /api/v1/solution-types/{type_id}
+  POST   /api/v1/solution-types/{type_id}/config  # Upload representative config
+  GET    /api/v1/solution-types/{type_id}/components  # Selectable components
+  POST   /api/v1/solution-types/{type_id}/components/select
+
+Hardening Profiles (Development Stage output):
+  POST   /api/v1/profiles/generate       # Trigger LLM code gen for all rules
+  GET    /api/v1/profiles
+  GET    /api/v1/profiles/{profile_id}
+  GET    /api/v1/profiles/{profile_id}/rules/{rule_id}
+  PUT    /api/v1/profiles/{profile_id}/rules/{rule_id}/code   # HITL edit
+  POST   /api/v1/profiles/{profile_id}/rules/{rule_id}/approve
+  POST   /api/v1/profiles/{profile_id}/rules/{rule_id}/comment
+
+Solution Instances (Enforcement Stage):
+  POST   /api/v1/instances
+  GET    /api/v1/instances
+  GET    /api/v1/instances/{instance_id}
+  POST   /api/v1/instances/{instance_id}/config  # Upload instance config JSON
+  DELETE /api/v1/instances/{instance_id}
+  
+  # Enforcement Operations:
+  POST   /api/v1/instances/{instance_id}/evaluate
+  POST   /api/v1/instances/{instance_id}/remediate
+  POST   /api/v1/instances/{instance_id}/remediate/dry-run
+  POST   /api/v1/instances/{instance_id}/rollback
+  GET    /api/v1/instances/{instance_id}/impact-assessment
+  GET    /api/v1/instances/{instance_id}/reports/{report_id}
+  GET    /api/v1/instances/{instance_id}/reports/{report_id}/download  # ARF XML
+
+Users & RBAC:
+  POST   /api/v1/auth/login
+  POST   /api/v1/auth/refresh
+  GET    /api/v1/users
+  POST   /api/v1/users
+  PUT    /api/v1/users/{user_id}/roles
+  DELETE /api/v1/users/{user_id}
+
+WebSocket:
+  WS     /ws/profiles/{profile_id}/generate   # Stream LLM code generation progress
+  WS     /ws/instances/{instance_id}/enforce  # Stream enforcement job progress
+```
+
+**RBAC Role Matrix:**
+
+| Operation | Admin | Security Officer | Auditor | User |
+|-----------|-------|-----------------|---------|------|
+| Create/manage policies | ✓ | ✓ | | |
+| Import policies | ✓ | ✓ | | |
+| Create solution types | ✓ | | | ✓ |
+| Generate rule code (LLM) | ✓ | ✓ | | |
+| HITL review/approve rules | ✓ | ✓ | | |
+| Create solution instances | ✓ | | | ✓ |
+| Run evaluation | ✓ | ✓ | ✓ | |
+| Run remediation | ✓ | ✓ | | |
+| Run rollback | ✓ | ✓ | | |
+| Manage workspaces | ✓ | | | |
+| Manage users | ✓ | | | |
+| View reports | ✓ | ✓ | ✓ | ✓ |
+
+### Configuration Examples
+
+**Docker Compose for local infrastructure:**
+```yaml
+version: '3.9'
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: aegis
+      POSTGRES_USER: aegis
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+
+  milvus:
+    image: milvusdb/milvus:v2.4.0
+    command: milvus run standalone
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+    volumes:
+      - milvus_data:/var/lib/milvus
+    depends_on:
+      - etcd
+      - minio
+
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.5
+
+  minio:
+    image: minio/minio:RELEASE.2024-01-01T00-00-00Z
+    command: server /data
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama_models:/root/.ollama
+    ports:
+      - "11434:11434"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  aegis-api:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://aegis:${POSTGRES_PASSWORD}@postgres/aegis
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      MILVUS_HOST: milvus
+      OLLAMA_BASE_URL: http://ollama:11434
+      SECRET_KEY: ${SECRET_KEY}
+    depends_on:
+      - postgres
+      - redis
+      - milvus
+      - ollama
+
+  aegis-worker:
+    build: ./backend
+    command: celery -A aegis.worker worker --loglevel=info
+    environment:
+      DATABASE_URL: postgresql://aegis:${POSTGRES_PASSWORD}@postgres/aegis
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+    depends_on:
+      - redis
+      - postgres
+
+  aegis-ui:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      REACT_APP_API_URL: http://aegis-api:8000
+
+volumes:
+  postgres_data:
+  milvus_data:
+  ollama_models:
+```
+
+**Project Directory Structure:**
+```
+Aegis-SecurityHardening/
+├── backend/
+│   ├── aegis/
+│   │   ├── __init__.py
+│   │   ├── main.py                    # FastAPI app entry point
+│   │   ├── config.py                  # Settings (Pydantic BaseSettings)
+│   │   ├── database.py                # SQLAlchemy async engine
+│   │   ├── worker.py                  # Celery app definition
+│   │   │
+│   │   ├── api/                       # REST API routers
+│   │   │   ├── v1/
+│   │   │   │   ├── workspaces.py
+│   │   │   │   ├── policies.py
+│   │   │   │   ├── solution_types.py
+│   │   │   │   ├── profiles.py        # Hardening profiles (Dev Stage)
+│   │   │   │   ├── instances.py       # Solution instances (Enforcement)
+│   │   │   │   ├── users.py
+│   │   │   │   └── auth.py
+│   │   │   └── websockets.py          # WS for streaming LLM + enforcement
+│   │   │
+│   │   ├── models/                    # SQLAlchemy ORM models
+│   │   │   ├── workspace.py
+│   │   │   ├── policy.py
+│   │   │   ├── policy_rule.py
+│   │   │   ├── solution_type.py
+│   │   │   ├── hardening_profile.py
+│   │   │   ├── solution_instance.py
+│   │   │   ├── enforcement_job.py
+│   │   │   ├── compliance_report.py
+│   │   │   └── user.py
+│   │   │
+│   │   ├── schemas/                   # Pydantic request/response schemas
+│   │   │   ├── policy.py
+│   │   │   ├── instance.py
+│   │   │   ├── profile.py
+│   │   │   └── user.py
+│   │   │
+│   │   ├── services/                  # Business logic services
+│   │   │   ├── policy_parser/
+│   │   │   │   ├── oval_parser.py     # Parse OVAL XML policies
+│   │   │   │   ├── xccdf_parser.py    # Parse XCCDF XML policies
+│   │   │   │   └── text_parser.py     # Parse English-text policies via LLM
+│   │   │   │
+│   │   │   ├── llm/
+│   │   │   │   ├── code_generator.py  # LLM code gen for eval/remediate/rollback
+│   │   │   │   ├── prompts.py         # Prompt templates per component type
+│   │   │   │   └── milvus_store.py    # Vector store for policy context
+│   │   │   │
+│   │   │   ├── connectors/            # Endpoint connectivity
+│   │   │   │   ├── base.py            # Abstract connector interface
+│   │   │   │   ├── ssh_connector.py   # Paramiko SSH (VMs, servers, switches)
+│   │   │   │   ├── redfish_connector.py  # iLO, BIOS via Redfish API
+│   │   │   │   ├── netmiko_connector.py  # Aruba/network switches
+│   │   │   │   └── rest_connector.py  # Generic HTTPS REST (Alletra, Morpheus)
+│   │   │   │
+│   │   │   ├── enforcement/
+│   │   │   │   ├── evaluator.py       # Execute evaluation functions
+│   │   │   │   ├── remediator.py      # Execute remediation + state save
+│   │   │   │   ├── rollback.py        # Execute rollback from saved state
+│   │   │   │   ├── dry_run.py         # Dry-run analysis
+│   │   │   │   └── impact_assessment.py  # Network topology risk analysis
+│   │   │   │
+│   │   │   ├── reporting/
+│   │   │   │   ├── arf_generator.py   # OpenSCAP ARF XML report generation
+│   │   │   │   └── html_generator.py  # HTML compliance report
+│   │   │   │
+│   │   │   └── rbac.py               # FastAPI RBAC dependency injection
+│   │   │
+│   │   └── tasks/                    # Celery async tasks
+│   │       ├── enforcement_tasks.py   # evaluate/remediate/rollback tasks
+│   │       └── codegen_tasks.py       # LLM code generation tasks
+│   │
+│   ├── migrations/                   # Alembic DB migrations
+│   ├── tests/
+│   ├── requirements.txt
+│   └── Dockerfile
+│
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── PolicyManager/         # Upload, view, manage policies
+│   │   │   ├── SolutionTypeBuilder/   # Create solution type, select components
+│   │   │   ├── HardeningProfileEditor/  # HITL code review/edit interface
+│   │   │   │   ├── RuleList.tsx
+│   │   │   │   ├── RuleCodeEditor.tsx  # Monaco Editor integration
+│   │   │   │   └── CommentThread.tsx
+│   │   │   ├── InstanceManager/       # Upload config, manage instances
+│   │   │   ├── ComplianceDashboard/   # RED/Orange/Green hierarchy visualization
+│   │   │   │   ├── HierarchyTree.tsx
+│   │   │   │   └── ComplianceGauge.tsx
+│   │   │   ├── EnforcementConsole/    # Run eval/remediate/rollback
+│   │   │   │   ├── ImpactAssessment.tsx
+│   │   │   │   └── DryRunResults.tsx
+│   │   │   └── UserManagement/
+│   │   ├── pages/
+│   │   ├── services/                  # API client services
+│   │   ├── hooks/                     # Custom React hooks
+│   │   └── types/                     # TypeScript type definitions
+│   ├── package.json
+│   └── Dockerfile
+│
+├── docker-compose.yml
+├── docker-compose.dev.yml
+├── .env.example
+└── README.md
+```
+
+### Technical Requirements
+
+**Endpoint Connectivity Requirements:**
+
+| Component Type | Protocol | Library | Notes |
+|---------------|----------|---------|-------|
+| Linux VMs/Servers | SSH | Paramiko | RHEL, SLES, Ubuntu |
+| iLO BMC | HTTPS/Redfish | python-redfish | HPE iLO 5/6 |
+| BIOS | HTTPS/Redfish via iLO | python-redfish | UEFI BIOS settings |
+| SRController | HTTPS/Redfish | python-redfish | HPE Smart Array |
+| Hypervisor ESXi | SSH + HTTPS | Paramiko + pyVmomi | VMware vSphere |
+| Aruba Switch | SSH | Netmiko | AOS-CX, AOS-S |
+| Alletra Storage | HTTPS REST | requests | HPE Alletra API |
+| PDU | HTTPS/SNMP | requests / pysnmp | APC / HPE PDU |
+| Kubernetes | HTTPS | kubernetes-client | k8s API server |
+| StepCA | HTTPS REST | requests | Certificate authority |
+| HashiCorp Vault | HTTPS REST | hvac | Secret management |
+| Morpheus | HTTPS REST | requests | HPE Morpheus API |
+
+**Security Hardening Standards Supported:**
+
+| Standard | Format | Parser | Scope |
+|----------|--------|--------|-------|
+| CIS Benchmarks | XCCDF + OVAL | xccdf_parser + oval_parser | OS, hypervisor, network |
+| DISA STIG | XCCDF + OVAL | xccdf_parser + oval_parser | OS, network, firmware |
+| DISA SRG | XCCDF (no OVAL) | xccdf_parser | Policy-level guidance |
+| Custom/English | Plain text/JSON | LLM text_parser | HPE-specific rules |
+
+**LLM Code Generation Pipeline:**
+```
+Policy Rule (text/OVAL/XCCDF)
+    → Policy Parser → Normalized Rule Object
+    → Context Retrieval (MilvusDB semantic search for similar rules)
+    → Prompt Construction (rule + context + component type + protocol)
+    → LLM (Ollama/CodeLlama) → Generated eval/remediate/rollback code
+    → Syntax validation (Python AST parse)
+    → Stored in Hardening Profile (status: "generated")
+    → HITL Review → Approved/Commented
+    → If commented: re-generate with comments as additional context
+    → Status: "approved" → Ready for enforcement
+```
+
+**Remediation Dry-Run Algorithm:**
+```
+For each rule in scope:
+1. Retrieve rule.risk_score and rule.affected_protocols
+2. Query impact assessment: find all communication channels using affected_protocols
+3. For each channel: check if client/server side supports post-hardening config
+4. Flag channels where compatibility breaks (RISK_BREAK)
+5. Aggregate: List of (rule_id, risk_score, impacted_channels, break_risk)
+6. Return dry-run report: safe rules vs. risky rules with explanation
+```
+
+## Recommended Approach
+
+**Full-Stack Python + React AI Agentic Architecture** with the following rationale:
+
+**Backend: FastAPI + Celery + PostgreSQL**
+- FastAPI chosen for async WebSocket support (streaming LLM generation), native OpenAPI, and Pydantic validation
+- Celery for long-running enforcement tasks that can span minutes/hours across multiple endpoints
+- PostgreSQL for relational integrity of workspace/policy/instance relationships with proper RBAC
+
+**LLM: Ollama (local) with CodeLlama/Llama3**
+- Mandatory for HPE private cloud air-gapped environments
+- OpenAI-compatible API means switching to hosted OpenAI requires only config change
+- CodeLlama 34B or Llama3:70B recommended for quality code generation
+
+**Vector Store: MilvusDB**
+- Per requirements specification ("milvusDb" explicitly mentioned)
+- Stores policy rule embeddings for semantic retrieval during code gen
+- Stores remediation patterns as reference examples for few-shot prompting
+
+**Policy Engine: OpenSCAP (oscap CLI) + Custom Python**
+- OpenSCAP for OVAL/XCCDF native evaluation where available
+- Custom Python connectors for components not supported by oscap (iLO, switches)
+- LLM generates Python code using connector abstractions
+
+**HITL Interface: React + Monaco Editor**
+- Monaco Editor provides professional code editing experience matching VS Code
+- Structured comment threads for Security Officer review workflow
+- WebSocket-driven real-time LLM generation progress
+
+**Remediation Safety: Impact Assessment + Dry-Run**
+- Graph-based network topology model (NetworkX) for service dependency analysis
+- Per-rule risk scoring fed into dry-run before any actual changes
+
+## Implementation Guidance
+
+- **Objectives**: Build complete Aegis application with Development Stage (LLM code gen + HITL) and Enforcement Stage (evaluate/remediate/rollback on real endpoints)
+- **Key Tasks**:
+  1. Project scaffold: monorepo with `backend/` (FastAPI) and `frontend/` (React+TS)
+  2. Docker Compose: PostgreSQL, Redis, MilvusDB, Ollama, Celery worker
+  3. Database models and Alembic migrations (workspace, policy, rule, profile, instance)
+  4. Policy parsers: OVAL, XCCDF, plain-text-via-LLM
+  5. LLM service: Ollama client, MilvusDB context retrieval, code generation prompts
+  6. Connector library: SSH (Paramiko), Redfish (iLO/BIOS), Netmiko (switches), REST
+  7. Enforcement engine: evaluate, remediate, rollback task runners
+  8. Impact assessment: NetworkX topology graph + channel compatibility analysis
+  9. Dry-run engine: risk scoring and break detection
+  10. OpenSCAP ARF report generation + HTML dashboard
+  11. REST API: all endpoints with RBAC
+  12. WebSocket: streaming code gen + enforcement progress
+  13. React frontend: PolicyManager, SolutionTypeBuilder, HITL Editor, ComplianceDashboard
+  14. RBAC: JWT auth with role enforcement on all operations
+- **Dependencies**:
+  - Python: fastapi, celery, sqlalchemy, alembic, pydantic, paramiko, netmiko, requests, python-redfish, kubernetes, hvac, pymilvus, openai, langchain, networkx, lxml, oscap-python
+  - Frontend: react, typescript, monaco-editor, react-query, recharts, react-flow (for topology graph)
+  - Infrastructure: PostgreSQL 16, Redis 7, MilvusDB 2.4, Ollama latest, Docker Compose
+- **Success Criteria**:
+  - Policy upload (OVAL/XCCDF) → parsed rules displayed
+  - LLM generates eval/remediate/rollback code for each rule per component type
+  - HITL can review, comment, re-generate, edit, and approve code
+  - Solution instance config JSON uploaded → evaluation runs against real endpoints
+  - Remediation dry-run identifies breaking changes before execution
+  - Rollback restores pre-remediation state
+  - Compliance report generated in OpenSCAP ARF format with RED/Orange/Green dashboard
+  - RBAC enforced: Security Officer can create policies, Auditor can only evaluate

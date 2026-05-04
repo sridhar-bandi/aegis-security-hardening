@@ -1,0 +1,112 @@
+[
+  {
+    "rule_id": "ILO-SEC-1.1",
+    "title": "Change default iLO administrator credentials immediately",
+    "description": "The default iLO administrator account credentials (typically 'admin'/'admin' or server-specific) must be changed before the server is placed in production. The default account should be renamed or disabled.",
+    "rationale": "Default credentials are publicly known and the first vector attackers attempt. Changing them is the single most important step to securing iLO access and preventing unauthorized out-of-band management.",
+    "severity": "critical",
+    "category": "authentication",
+    "target_component_types": ["ilo", "bmc", "hpe-ilo", "redfish"],
+    "check_content": "Connect to iLO web UI → Administration → User Administration.\nVerify no accounts use default username 'admin' with default password.\nVerify the built-in administrator account has had its password changed from factory default.\nREDFISH: GET /redfish/v1/AccountService/Accounts/ and verify account list.",
+    "fix_text": "iLO Web UI: Administration → User Administration → Select admin account → Modify → Set a strong, unique password (minimum 12 characters, mixed case, digits, symbols).\nConsider renaming the default 'admin' account to a non-obvious username.\nREDFISH: PATCH /redfish/v1/AccountService/Accounts/1 {\"Password\": \"<new-password>\"}"
+  },
+  {
+    "rule_id": "ILO-SEC-1.2",
+    "title": "Disable IPMI/DCMI over LAN",
+    "description": "IPMI over LAN (port 623 UDP) must be disabled on iLO. The IPMI protocol has numerous well-documented vulnerabilities including cipher zero authentication bypass and unauthenticated IPMI commands.",
+    "rationale": "IPMI over LAN allows unauthenticated access in some configurations (cipher 0 bypass) and has had multiple critical CVEs. Redfish provides a secure, REST-based alternative for all IPMI functionality.",
+    "severity": "critical",
+    "category": "service",
+    "target_component_types": ["ilo", "bmc", "hpe-ilo", "redfish"],
+    "check_content": "iLO Web UI: Network → iLO Dedicated Network Port → IPMI Settings.\nVerify 'IPMI over LAN' is disabled.\nREDFISH: GET /redfish/v1/Managers/1/NetworkProtocol → check IPMI.ProtocolEnabled = false.\nNetwork scan: nmap -sU -p 623 <ilo-ip> should not show open port.",
+    "fix_text": "iLO Web UI: Network → iLO Dedicated Network Port → IPMI Settings → Disable IPMI over LAN → Apply.\nREDFISH: PATCH /redfish/v1/Managers/1/NetworkProtocol {\"IPMI\": {\"ProtocolEnabled\": false}}"
+  },
+  {
+    "rule_id": "ILO-SEC-1.3",
+    "title": "Restrict iLO network access to a dedicated management VLAN",
+    "description": "The iLO interface must be accessible only from a dedicated, isolated out-of-band management network (VLAN) with restricted access controls. iLO should not be reachable from production or user VLANs.",
+    "rationale": "Exposing iLO to production networks allows any compromised host to attempt attacks against the BMC. A dedicated management VLAN with firewall controls ensures only authorized management stations can reach iLO.",
+    "severity": "high",
+    "category": "network",
+    "target_component_types": ["ilo", "bmc", "hpe-ilo", "redfish"],
+    "check_content": "Verify iLO IP address belongs to the designated OOB management subnet.\nVerify network firewall rules restrict access to iLO ports (443, 17988, 17990) from only authorized management hosts.\niLO Web UI: Network → iLO Dedicated Network Port → Verify IP configuration.\nCheck iLO Access Settings for allowed IP ranges.",
+    "fix_text": "iLO Web UI: Network → iLO Dedicated Network Port → Set a static IP within the management VLAN.\niLO Web UI: Security → Access Settings → Login Security → Restrict login to specific IP ranges.\nConfigure firewall/ACLs to block all but management hosts from reaching iLO ports."
+  },
+  {
+    "rule_id": "ILO-SEC-2.1",
+    "title": "Enforce TLS 1.2 or higher and disable weak ciphers",
+    "description": "iLO HTTPS management must be configured to use only TLS 1.2 or TLS 1.3. Weak ciphers (RC4, DES, 3DES, MD5-based, export ciphers) and older protocols (SSLv3, TLS 1.0, TLS 1.1) must be disabled.",
+    "rationale": "Weak TLS configurations allow protocol downgrade attacks (POODLE, BEAST, DROWN) that can decrypt management traffic. Strong TLS ensures confidentiality and integrity of credentials and commands.",
+    "severity": "high",
+    "category": "tls",
+    "target_component_types": ["ilo", "bmc", "hpe-ilo", "redfish"],
+    "check_content": "iLO Web UI: Security → Encryption → Verify 'High Security' or 'FIPS' mode is enabled.\nREDFISH: GET /redfish/v1/Managers/1/SecurityService\nExternal check: nmap --script ssl-enum-ciphers -p 443 <ilo-ip> | grep -E 'TLSv1\\.0|SSLv3|RC4|DES'",
+    "fix_text": "iLO Web UI: Security → Encryption → Set to 'High Security' or enable 'FIPS Mode'.\nHigh Security mode disables TLS 1.0/1.1 and weak ciphers automatically.\nREDFISH: PATCH /redfish/v1/Managers/1/SecurityService {\"SecurityState\": \"HighSecurity\"}"
+  },
+  {
+    "rule_id": "ILO-SEC-2.2",
+    "title": "Install a valid CA-signed TLS certificate on iLO",
+    "description": "The iLO web interface must use a certificate signed by a trusted internal or public CA. The self-signed default certificate should be replaced to prevent MITM attacks and certificate warnings that train users to ignore errors.",
+    "rationale": "Self-signed certificates cannot be verified by clients, enabling man-in-the-middle attacks where an attacker intercepts iLO credentials. Users who bypass certificate warnings become accustomed to ignoring security controls.",
+    "severity": "medium",
+    "category": "tls",
+    "target_component_types": ["ilo", "bmc", "hpe-ilo", "redfish"],
+    "check_content": "iLO Web UI: Security → SSL Certificate → View the current certificate.\nVerify Issuer is a trusted CA (not 'iLO Default Issuer').\nVerify certificate expiry date is in the future.\nREDFISH: GET /redfish/v1/Managers/1/SecurityService/HttpsCert",
+    "fix_text": "iLO Web UI: Security → SSL Certificate → Generate CSR → Submit to CA → Import signed certificate.\nREDFISH: POST /redfish/v1/Managers/1/SecurityService/HttpsCert/Actions/HpeHttpsCert.ImportCertificate\nAlternatively use iLO Amplifier Pack or HPE OneView for centralized certificate management."
+  },
+  {
+    "rule_id": "ILO-SEC-3.1",
+    "title": "Enable iLO audit logging and forward to SIEM",
+    "description": "iLO audit logging must be enabled to capture all authentication events, configuration changes, and remote console sessions. Logs should be forwarded to a centralized SIEM/syslog server.",
+    "rationale": "Without audit logs, unauthorized iLO access and configuration changes cannot be detected or investigated. BMC logs are critical for detecting supply-chain compromise and persistent firmware implants.",
+    "severity": "high",
+    "category": "audit",
+    "target_component_types": ["ilo", "bmc", "hpe-ilo", "redfish"],
+    "check_content": "iLO Web UI: Administration → Remote Syslog → Verify Remote Syslog is enabled and server IP/port are configured.\niLO Web UI: Administration → Integrated Log → Review for audit events.\nREDFISH: GET /redfish/v1/Managers/1/RemoteSyslog",
+    "fix_text": "iLO Web UI: Administration → Remote Syslog → Enable Remote Syslog → Set syslog server IP and port (514 UDP or 6514 TCP-TLS).\nSet minimum severity to 'Notice'.\nREDFISH: PATCH /redfish/v1/Managers/1/RemoteSyslog {\"ServiceEnabled\": true, \"RemoteServers\": [{\"Host\": \"<syslog-ip>\", \"Port\": 514, \"Protocol\": \"UDP\"}]}"
+  },
+  {
+    "rule_id": "ILO-SEC-3.2",
+    "title": "Configure iLO login security banner",
+    "description": "A legal warning banner must be displayed on the iLO login page and CLI informing users that unauthorized access is prohibited and sessions are monitored.",
+    "rationale": "Login banners establish the legal basis for monitoring and prosecution of unauthorized access. They are required by many compliance frameworks (PCI DSS, HIPAA, SOX) and may be required for legal action.",
+    "severity": "low",
+    "category": "authentication",
+    "target_component_types": ["ilo", "bmc", "hpe-ilo", "redfish"],
+    "check_content": "iLO Web UI: Security → Login Security Banner → Verify a banner is enabled with appropriate text.\nREDFISH: GET /redfish/v1/Managers/1/SecurityService/SecurityDashboard",
+    "fix_text": "iLO Web UI: Security → Login Security Banner → Enable → Enter banner text:\n'WARNING: Unauthorized access to this system is prohibited. All access is monitored and recorded. Disconnect immediately if not authorized.'\nREDFISH: PATCH /redfish/v1/Managers/1/SecurityService {\"LoginSecurityBanner\": {\"IsEnabled\": true, \"SecurityMessage\": \"WARNING: Authorized use only. All activity is monitored.\"}}"
+  },
+  {
+    "rule_id": "ILO-SEC-4.1",
+    "title": "Set iLO session inactivity timeout",
+    "description": "iLO web and SSH sessions must be configured to terminate automatically after a period of inactivity (maximum 30 minutes) to prevent unauthorized use of unattended sessions.",
+    "rationale": "Unattended authenticated sessions can be hijacked by physical access to the management workstation. Session timeouts limit the window of opportunity for such attacks.",
+    "severity": "medium",
+    "category": "authentication",
+    "target_component_types": ["ilo", "bmc", "hpe-ilo", "redfish"],
+    "check_content": "iLO Web UI: Security → Access Settings → Session Timeout.\nVerify timeout is set to 30 minutes or less (not 0 which means no timeout).\nREDFISH: GET /redfish/v1/Managers/1/SecurityService/Sessions",
+    "fix_text": "iLO Web UI: Security → Access Settings → Session Options → Set 'Session Timeout' to 30 (minutes).\nREDFISH: PATCH /redfish/v1/AccountService {\"SessionService\": {\"SessionTimeout\": 1800}}"
+  },
+  {
+    "rule_id": "ILO-SEC-4.2",
+    "title": "Keep iLO firmware updated to the latest version",
+    "description": "iLO firmware must be maintained at the latest HPE-supported version to receive security patches addressing known vulnerabilities in the BMC firmware.",
+    "rationale": "iLO firmware vulnerabilities (such as CVE-2017-12542 which allowed unauthenticated RCE) can provide persistent, OS-independent access to attackers. Regular firmware updates are the primary mitigation.",
+    "severity": "critical",
+    "category": "general",
+    "target_component_types": ["ilo", "bmc", "hpe-ilo", "redfish"],
+    "check_content": "iLO Web UI: Home → iLO Version → Compare against HPE Support website for current version.\nREDFISH: GET /redfish/v1/Managers/1 → check FirmwareVersion.\nHPE Security Advisories: https://support.hpe.com/hpesc/public/home/result?q=ilo+security",
+    "fix_text": "Download latest iLO firmware from HPE Support (https://support.hpe.com).\niLO Web UI: Administration → Firmware & OS Software → iLO Firmware → Flash → Upload firmware image.\nAlternatively use HPE OneView, iLO Amplifier Pack, or Service Pack for ProLiant (SPP) for automated firmware updates."
+  },
+  {
+    "rule_id": "ILO-SEC-4.3",
+    "title": "Enable iLO Automatic System Recovery (ASR) and Secure Boot validation",
+    "description": "HPE iLO's Secure Boot and System Recovery features should be enabled to ensure firmware integrity. Secure Boot validates UEFI drivers and OS boot loaders against cryptographic signatures.",
+    "rationale": "Firmware-level implants (bootkits) are the most persistent form of compromise and survive OS reinstallation. Secure Boot and HPE's Silicon Root of Trust verify firmware integrity before execution.",
+    "severity": "high",
+    "category": "general",
+    "target_component_types": ["ilo", "bmc", "hpe-ilo", "redfish"],
+    "check_content": "iLO Web UI: System Information → Security → Secure Boot → Verify Secure Boot is enabled and in Deployed mode.\nREDFISH: GET /redfish/v1/Systems/1/SecureBoot → check SecureBootEnable = true and SecureBootCurrentBoot = UserMode or DeployedMode.\nVerify iLO Security Dashboard shows no integrity violations.",
+    "fix_text": "iLO Web UI: System Information → Security → Secure Boot → Enable Secure Boot.\nEnsure UEFI boot mode is configured (not Legacy BIOS).\nREDFISH: PATCH /redfish/v1/Systems/1/SecureBoot {\"SecureBootEnable\": true}\nNote: Enabling Secure Boot requires reboot and may require enrolling OS boot loader keys."
+  }
+]

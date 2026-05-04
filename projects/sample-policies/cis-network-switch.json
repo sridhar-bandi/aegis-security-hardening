@@ -1,0 +1,112 @@
+[
+  {
+    "rule_id": "CIS-SWITCH-1.1",
+    "title": "Disable Telnet and use SSH version 2 only",
+    "description": "Telnet transmits all data including credentials in cleartext. It must be disabled in favor of SSH version 2 for all remote management access to network switches.",
+    "rationale": "Telnet is susceptible to eavesdropping and credential interception. SSHv2 provides encrypted communications and is required to protect management plane integrity.",
+    "severity": "critical",
+    "category": "ssh",
+    "target_component_types": ["switch", "network-device", "cisco", "aruba"],
+    "check_content": "Cisco IOS: show line vty 0 15 | include Transport\nExpected: Transport Input SSH (not telnet)\nVerify SSHv2: show ip ssh | include version\nExpected: SSH Enabled - version 2.0",
+    "fix_text": "Cisco IOS:\nip ssh version 2\nline vty 0 15\n transport input ssh\n no transport input telnet\n!\nAruba/HP:\nssh version 2\nno telnet-server"
+  },
+  {
+    "rule_id": "CIS-SWITCH-1.2",
+    "title": "Disable unused management services (HTTP, SNMP v1/v2c)",
+    "description": "HTTP/HTTPS management interface should be disabled or restricted. SNMPv1 and SNMPv2c use community strings that are transmitted in cleartext and should be replaced with SNMPv3.",
+    "rationale": "HTTP lacks encryption. SNMPv1/v2c community strings are easily intercepted. Leaving them enabled provides attackers with both management access and device reconnaissance capabilities.",
+    "severity": "high",
+    "category": "service",
+    "target_component_types": ["switch", "network-device", "cisco", "aruba"],
+    "check_content": "Cisco IOS: show running-config | include ip http|snmp-server community\nHTTP/HTTPS should be absent or restricted by ACL.\nSNMP community strings should not use default values (public, private).",
+    "fix_text": "Cisco IOS:\nno ip http server\nno ip http secure-server\nno snmp-server community public\nno snmp-server community private\nsnmp-server group <group> v3 priv\nsnmp-server user <user> <group> v3 auth sha <authpass> priv aes 128 <privpass>"
+  },
+  {
+    "rule_id": "CIS-SWITCH-1.3",
+    "title": "Configure AAA authentication for management access",
+    "description": "Authentication, Authorization, and Accounting (AAA) must be configured for all management access including console, VTY lines, and enable mode using TACACS+ or RADIUS.",
+    "rationale": "Local authentication does not provide centralized audit trails. AAA with TACACS+/RADIUS enables per-command authorization and centralized logging of all management actions.",
+    "severity": "high",
+    "category": "authentication",
+    "target_component_types": ["switch", "network-device", "cisco", "aruba"],
+    "check_content": "Cisco IOS: show running-config | include aaa|tacacs|radius\nVerify AAA new-model is enabled and TACACS+/RADIUS servers are configured.\nVerify fallback to local is configured.",
+    "fix_text": "Cisco IOS:\naaa new-model\ntacacs server <name>\n address ipv4 <tacacs-server-ip>\n key <secret>\naaa authentication login default group tacacs+ local\naaa authorization exec default group tacacs+ local\naaa accounting exec default start-stop group tacacs+"
+  },
+  {
+    "rule_id": "CIS-SWITCH-1.4",
+    "title": "Set login security banner",
+    "description": "A legal warning banner must be displayed before authentication on all management access methods (console, SSH, HTTPS) stating that unauthorized access is prohibited.",
+    "rationale": "Login banners establish legal notice of unauthorized access prohibition, which may be required for legal action against intruders and satisfies regulatory compliance requirements.",
+    "severity": "low",
+    "category": "authentication",
+    "target_component_types": ["switch", "network-device", "cisco", "aruba"],
+    "check_content": "Cisco IOS: show running-config | include banner\nVerify banner login, banner motd, or banner exec are configured with appropriate warning text.",
+    "fix_text": "Cisco IOS:\nbanner login ^\nWARNING: Unauthorized access to this device is prohibited.\nAll access is monitored and logged. Disconnect immediately if not authorized.\n^\nbanner exec ^\nAuthorized access only. All activity is subject to monitoring and recording.\n^"
+  },
+  {
+    "rule_id": "CIS-SWITCH-2.1",
+    "title": "Enable port security on access ports",
+    "description": "Port security restricts the number of valid MAC addresses on a port, preventing unauthorized devices from connecting to the network through switch access ports.",
+    "rationale": "Without port security, an attacker can connect an unauthorized device or hub to an access port and gain network access. MAC flooding attacks can overflow CAM tables.",
+    "severity": "medium",
+    "category": "network",
+    "target_component_types": ["switch", "network-device", "cisco", "aruba"],
+    "check_content": "Cisco IOS: show port-security | include Enabled\nFor each access port: show port-security interface <interface>\nVerify Maximum MAC addresses is 1 and violation mode is shutdown.",
+    "fix_text": "Cisco IOS (per access port):\ninterface <interface>\n switchport mode access\n switchport port-security\n switchport port-security maximum 1\n switchport port-security violation shutdown\n switchport port-security aging time 2\n switchport port-security aging type inactivity"
+  },
+  {
+    "rule_id": "CIS-SWITCH-2.2",
+    "title": "Disable unused switch ports and place in unused VLAN",
+    "description": "All unused switch ports must be administratively shut down and moved to a dedicated unused/quarantine VLAN that is not routed.",
+    "rationale": "Unused active ports allow unauthorized physical device connections. Placing them in an unrouted VLAN prevents access to the network even if a device is connected.",
+    "severity": "medium",
+    "category": "network",
+    "target_component_types": ["switch", "network-device", "cisco", "aruba"],
+    "check_content": "Cisco IOS: show interfaces status | include notconnect|disabled\nVerify all unused ports are in 'disabled' state and assigned to a quarantine VLAN (not VLAN 1).\nshow running-config interface <unused-port>",
+    "fix_text": "Cisco IOS:\ninterface range <unused-interfaces>\n switchport access vlan 999\n shutdown\n!\nvlan 999\n name QUARANTINE\n!"
+  },
+  {
+    "rule_id": "CIS-SWITCH-2.3",
+    "title": "Disable VLAN 1 on all trunk ports and as native VLAN",
+    "description": "VLAN 1 is the default VLAN and carries management and untagged traffic by default. It should not be used as the native VLAN or propagated on trunks to prevent VLAN hopping attacks.",
+    "rationale": "VLAN hopping attacks exploit the native VLAN on trunk ports. Disabling VLAN 1 on trunks and changing the native VLAN to an unused VLAN prevents double-tagging attacks.",
+    "severity": "high",
+    "category": "network",
+    "target_component_types": ["switch", "network-device", "cisco", "aruba"],
+    "check_content": "Cisco IOS: show interfaces trunk\nVerify native VLAN is not VLAN 1.\nVerify VLAN 1 is not in the VLANs allowed on trunk (or is explicitly pruned).",
+    "fix_text": "Cisco IOS (per trunk port):\ninterface <trunk-interface>\n switchport trunk native vlan 999\n switchport trunk allowed vlan remove 1\n!\nAlso: no vlan dot1q tag native (to tag native VLAN on Cisco switches)"
+  },
+  {
+    "rule_id": "CIS-SWITCH-3.1",
+    "title": "Enable BPDU Guard on all PortFast-enabled ports",
+    "description": "BPDU Guard should be enabled on all access ports configured with PortFast to prevent unauthorized switches from being connected and manipulating the spanning tree topology.",
+    "rationale": "An attacker with physical access can connect a rogue switch and advertise superior BPDUs to become the root bridge, enabling traffic interception (man-in-the-middle).",
+    "severity": "high",
+    "category": "network",
+    "target_component_types": ["switch", "network-device", "cisco", "aruba"],
+    "check_content": "Cisco IOS: show spanning-tree summary | include BPDU Guard\nVerify 'BPDU Guard Default' is enabled.\nPer-interface: show spanning-tree interface <interface> detail | include BPDU",
+    "fix_text": "Cisco IOS (global):\nspanning-tree portfast bpduguard default\nPer interface:\ninterface <interface>\n spanning-tree portfast\n spanning-tree bpduguard enable"
+  },
+  {
+    "rule_id": "CIS-SWITCH-3.2",
+    "title": "Configure idle session timeout on VTY lines",
+    "description": "VTY (virtual terminal) lines must have an inactivity timeout configured to automatically terminate idle management sessions and prevent unauthorized access to unattended sessions.",
+    "rationale": "Without session timeouts, an authenticated but abandoned session can be hijacked by an attacker with physical access to the terminal. Timeouts reduce this window.",
+    "severity": "medium",
+    "category": "authentication",
+    "target_component_types": ["switch", "network-device", "cisco", "aruba"],
+    "check_content": "Cisco IOS: show running-config | section line vty\nVerify 'exec-timeout 5 0' (5 minutes) or less is configured on all VTY lines.\nVerify console line also has exec-timeout configured.",
+    "fix_text": "Cisco IOS:\nline vty 0 15\n exec-timeout 5 0\n!\nline con 0\n exec-timeout 5 0\n!"
+  },
+  {
+    "rule_id": "CIS-SWITCH-3.3",
+    "title": "Enable logging to remote syslog server with timestamps",
+    "description": "All switch events must be sent to a centralized syslog server. Log messages must include timestamps for forensic analysis and compliance reporting.",
+    "rationale": "Local logs on switches may be overwritten or lost during failures. Centralized logging ensures event correlation, audit trail integrity, and timely incident detection.",
+    "severity": "high",
+    "category": "logging",
+    "target_component_types": ["switch", "network-device", "cisco", "aruba"],
+    "check_content": "Cisco IOS: show running-config | include logging\nVerify a logging host is configured, logging timestamps are enabled (service timestamps log datetime msec), and minimum severity is informational.",
+    "fix_text": "Cisco IOS:\nservice timestamps log datetime msec\nlogging <syslog-server-ip>\nlogging trap informational\nlogging source-interface <management-interface>\nlogging on"
+  }
+]

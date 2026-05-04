@@ -1,0 +1,390 @@
+{
+  "version": "1.0.0",
+  "cidState": "FACTORY_LOCKED",
+  "baseLine": "PCAI202604.1",
+  "releaseVersion": "2026.04.00",
+  "deploymentModel": "Standard",
+  "hpeOrderDetails": [
+    {
+      "ucId": "5144911844-14",
+      "customerName": "TestGen2SM",
+      "hpeSalesOrderNumber": "123456789",
+      "sfdcOpportunityId": "OPE-0123456789"
+    }
+  ],
+  "createdBy": "priya-lakshmi.muthuswamy@hpe.com",
+  "createdOn": "2026-05-04 06:23:10",
+  "cidNumber": "GL-1-061318982-0456-001",
+  "lastUpdatedBy": "priya-lakshmi.muthuswamy@hpe.com",
+  "lastUpdatedOn": "2026-05-04 06:24:28",
+  "solutionName": "HPE Private Cloud AI",
+  "configuration": "SM 1 Node",
+  "solutionGeneration": "Gen2",
+  "racks": [
+    {
+      "componentId": "rack-001",
+      "pdus": [
+        {
+          "componentId": "pdu-001",
+          "type": "P59416-B21",
+          "accessCredentials": [
+            {
+              "target": "PDU",
+              "userName": "admin",
+              "password": "Password!234"
+            }
+          ]
+        },
+        {
+          "componentId": "pdu-002",
+          "type": "P59416-B21",
+          "accessCredentials": [
+            {
+              "target": "PDU",
+              "userName": "admin",
+              "password": "Password!234"
+            }
+          ]
+        }
+      ],
+      "networkSwitches": [
+        {
+          "componentId": "switch-001",
+          "type": "HPE Aruba 6300M",
+          "networkConnectionId": "O1s.48x1gb",
+          "accessCredentials": [
+            {
+              "target": "NETWORK_SWITCH",
+              "userName": "admin",
+              "password": "Password!234"
+            }
+          ],
+          "rackElevationEnd": 37,
+          "rackElevationStart": 37
+        },
+        {
+          "componentId": "switch-002",
+          "type": "HPE Aruba 6300M",
+          "networkConnectionId": "O1s.48x1gb",
+          "accessCredentials": [
+            {
+              "target": "NETWORK_SWITCH",
+              "userName": "admin",
+              "password": "Password!234"
+            }
+          ],
+          "rackElevationEnd": 36,
+          "rackElevationStart": 36
+        },
+        {
+          "componentId": "switch-003",
+          "type": "HPE NVIDIA Switch SN4700M",
+          "networkConnectionId": "E1m.32x400gb",
+          "accessCredentials": [
+            {
+              "target": "NETWORK_SWITCH",
+              "userName": "cumulus",
+              "password": "Password!234"
+            }
+          ],
+          "rackElevationEnd": 42,
+          "rackElevationStart": 42
+        },
+        {
+          "componentId": "switch-004",
+          "type": "HPE NVIDIA Switch SN4700M",
+          "networkConnectionId": "E1m.32x400gb",
+          "accessCredentials": [
+            {
+              "target": "NETWORK_SWITCH",
+              "userName": "cumulus",
+              "password": "Password!234"
+            }
+          ],
+          "rackElevationEnd": 40,
+          "rackElevationStart": 40
+        }
+      ],
+      "servers": [
+        {
+          "componentId": "server-001",
+          "type": "DL325",
+          "accessCredentials": [
+            {
+              "target": "HOST",
+              "userName": "hvadmin",
+              "password": "Prostack123!"
+            },
+            {
+              "target": "ILO",
+              "userName": "prostack_admin",
+              "password": "Prostack123!"
+            },
+            {
+              "target": "ILO_FACTORY_DEFAULT",
+              "userName": "Administrator",
+              "password": "password"
+            },
+            {
+              "target": "OPSRAMP",
+              "userName": "opsramp-user",
+              "password": "Pass@1234"
+            }
+          ],
+          "lighthouseModuleId": "B3.AP64.384.2xE25-2.0.2xN1600.8xN1600.0.0.0.0",
+          "instanceType": "S3au.N12d",
+          "allocatedFor": "controlNode",
+          "rackElevationEnd": 34,
+          "rackElevationStart": 34
+        },
+        {
+          "componentId": "server-002",
+          "type": "DL325",
+          "accessCredentials": [
+            {
+              "target": "HOST",
+              "userName": "hvadmin",
+              "password": "Prostack123!"
+            },
+            {
+              "target": "ILO",
+              "userName": "prostack_admin",
+              "password": "Prostack123!"
+            },
+            {
+              "target": "ILO_FACTORY_DEFAULT",
+              "userName": "Administrator",
+              "password": "password"
+            },
+            {
+              "target": "OPSRAMP",
+              "userName": "opsramp-user",
+              "password": "Pass@1234"
+            }
+          ],
+          "lighthouseModuleId": "B3.AP64.384.2xE25-2.0.2xN1600.8xN1600.0.0.0.0",
+          "instanceType": "S3au.N12d",
+          "allocatedFor": "controlNode",
+          "rackElevationEnd": 33,
+          "rackElevationStart": 33
+        },
+        {
+          "componentId": "server-003",
+          "type": "DL325",
+          "accessCredentials": [
+            {
+              "target": "HOST",
+              "userName": "hvadmin",
+              "password": "Prostack123!"
+            },
+            {
+              "target": "ILO",
+              "userName": "prostack_admin",
+              "password": "Prostack123!"
+            },
+            {
+              "target": "ILO_FACTORY_DEFAULT",
+              "userName": "Administrator",
+              "password": "password"
+            },
+            {
+              "target": "OPSRAMP",
+              "userName": "opsramp-user",
+              "password": "Pass@1234"
+            }
+          ],
+          "lighthouseModuleId": "B3.AP64.384.2xE25-2.0.2xN1600.8xN1600.0.0.0.0",
+          "instanceType": "S3au.N12d",
+          "allocatedFor": "controlNode",
+          "rackElevationEnd": 32,
+          "rackElevationStart": 32
+        },
+        {
+          "componentId": "server-004",
+          "type": "DL380a",
+          "accessCredentials": [
+            {
+              "target": "HOST",
+              "userName": "root",
+              "password": "quattro123"
+            },
+            {
+              "target": "OS",
+              "userName": "pcadmin",
+              "password": "PC4AIStack123!"
+            },
+            {
+              "target": "ILO",
+              "userName": "prostack_admin",
+              "password": "Prostack123!"
+            },
+            {
+              "target": "ILO_FACTORY_DEFAULT",
+              "userName": "Administrator",
+              "password": "password"
+            },
+            {
+              "target": "OPSRAMP",
+              "userName": "opsramp-user",
+              "password": "Pass@1234"
+            }
+          ],
+          "lighthouseModuleId": "F5.NS384.1024.1xE200-2.4xE400-1.1xNS480.4xN3200.4xNR6000.0.0.0",
+          "instanceType": "Z5i.z4m",
+          "allocatedFor": "pcai",
+          "rackElevationStart": 1,
+          "rackElevationEnd": 4
+        }
+      ],
+      "rackLabel": "Icon #1 - PC_AI_Gen2_SM_4GPU_RTX_3Yr-03272026",
+      "storageArrays": [
+        {
+          "componentId": "stor-001",
+          "type": "HPE Alletra Storage MP",
+          "maxProtectedCapacityTB": 153.6,
+          "accessCredentials": [
+            {
+              "target": "STORAGE_ARRAY",
+              "userName": "admin",
+              "password": "123456"
+            },
+            {
+              "target": "SSH",
+              "userName": "root",
+              "password": "rootvastdata"
+            }
+          ],
+          "volumeType": "F3s.b2N154",
+          "enclosures": [
+            {
+              "nodes": [
+                {
+                  "description": "HPE GreenLake for File Storage MP 32c 256GB Compute Node",
+                  "type": "S1F26A",
+                  "bay": 1,
+                  "componentId": "cnode-001",
+                  "accessCredentials": [
+                    {
+                      "target": "ILO_FACTORY_DEFAULT",
+                      "userName": "Administrator"
+                    },
+                    {
+                      "target": "OS",
+                      "userName": "vastdata",
+                      "password": "vastdata"
+                    }
+                  ],
+                  "rackElevationEnd": 23,
+                  "rackElevationStart": 23
+                },
+                {
+                  "description": "HPE GreenLake for File Storage MP 32c 256GB Compute Node",
+                  "type": "S1F26A",
+                  "bay": 2,
+                  "componentId": "cnode-002",
+                  "accessCredentials": [
+                    {
+                      "target": "ILO_FACTORY_DEFAULT",
+                      "userName": "Administrator"
+                    },
+                    {
+                      "target": "OS",
+                      "userName": "vastdata",
+                      "password": "vastdata"
+                    }
+                  ],
+                  "rackElevationEnd": 24,
+                  "rackElevationStart": 24
+                }
+              ],
+              "partNumber": "R7C75A",
+              "role": "Compute",
+              "type": "HPE Alletra Storage MP 10000 2U Chassis",
+              "componentId": "enclosure-001",
+              "rackElevationEnd": 24,
+              "rackElevationStart": 23
+            },
+            {
+              "maxProtectedCapacityTB": 153.6,
+              "nodes": [
+                {
+                  "description": "HPE Alletra Storage MP NVMe Expansion Shelf Node",
+                  "type": "R7C79A",
+                  "bay": 1,
+                  "componentId": "dnode-001",
+                  "accessCredentials": [
+                    {
+                      "target": "ILO_FACTORY_DEFAULT",
+                      "userName": "Administrator"
+                    },
+                    {
+                      "target": "OS",
+                      "userName": "vastdata",
+                      "password": "vastdata"
+                    }
+                  ],
+                  "rackElevationEnd": 21,
+                  "rackElevationStart": 21
+                },
+                {
+                  "description": "HPE Alletra Storage MP NVMe Expansion Shelf Node",
+                  "type": "R7C79A",
+                  "bay": 2,
+                  "componentId": "dnode-002",
+                  "accessCredentials": [
+                    {
+                      "target": "ILO_FACTORY_DEFAULT",
+                      "userName": "Administrator"
+                    },
+                    {
+                      "target": "OS",
+                      "userName": "vastdata",
+                      "password": "vastdata"
+                    }
+                  ],
+                  "rackElevationEnd": 22,
+                  "rackElevationStart": 22
+                }
+              ],
+              "role": "Storage",
+              "type": "S1R27A",
+              "componentId": "enclosure-002",
+              "rackElevationEnd": 22,
+              "rackElevationStart": 21
+            }
+          ],
+          "networkSwitches": [
+            {
+              "componentId": "switch-005",
+              "type": "HPE Alletra Storage MP 32-port 100GbE Switch Bundle",
+              "accessCredentials": [
+                {
+                  "target": "NETWORK_SWITCH",
+                  "userName": "admin",
+                  "password": "ssmssm99"
+                }
+              ],
+              "rackElevationEnd": 30,
+              "rackElevationStart": 30
+            },
+            {
+              "componentId": "switch-006",
+              "type": "HPE Alletra Storage MP 32-port 100GbE Switch Bundle",
+              "accessCredentials": [
+                {
+                  "target": "NETWORK_SWITCH",
+                  "userName": "admin",
+                  "password": "ssmssm99"
+                }
+              ],
+              "rackElevationEnd": 29,
+              "rackElevationStart": 29
+            }
+          ],
+          "rackElevationEnd": 30,
+          "rackElevationStart": 21
+        }
+      ]
+    }
+  ]
+}

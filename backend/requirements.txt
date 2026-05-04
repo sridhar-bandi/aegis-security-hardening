@@ -1,0 +1,52 @@
+# Web framework
+fastapi==0.111.0
+uvicorn[standard]==0.30.0
+websockets==12.0
+python-multipart==0.0.9
+aiofiles==23.2.1
+
+# Database
+sqlalchemy[asyncio]==2.0.31
+alembic==1.13.2
+asyncpg==0.30.0
+psycopg2-binary==2.9.10
+
+# Task queue
+celery==5.4.0
+redis==5.0.7
+
+# LLM and vector store
+openai==1.35.0
+langchain==0.2.6
+langchain-community==0.2.6
+pymilvus==2.5.8
+sentence-transformers==3.0.1
+
+# Security and auth
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
+
+# Endpoint connectors
+paramiko==3.4.0
+netmiko==4.4.0
+requests==2.32.3
+kubernetes==30.1.0
+hvac==2.3.0
+pyVmomi==8.0.2
+
+# Policy parsing
+lxml==5.4.0
+
+# Network analysis
+networkx==3.3
+
+# Utility
+pydantic-settings==2.3.4
+python-dotenv==1.0.1
+
+# Testing
+pytest==8.2.2
+pytest-asyncio==0.23.8
+httpx==0.27.0
+anyio==4.4.0

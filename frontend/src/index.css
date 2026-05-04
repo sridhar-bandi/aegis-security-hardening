@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-red: #c0392b;
+  --color-orange: #e67e22;
+  --color-green: #27ae60;
+}
+
+html {
+  font-size: 18px;
+}
+
+body {
+  @apply bg-gray-100 text-gray-900 font-sans;
+}

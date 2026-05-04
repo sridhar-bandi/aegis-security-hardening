@@ -1,0 +1,112 @@
+[
+  {
+    "rule_id": "CIS-UBUNTU-1.1.1",
+    "title": "Ensure /tmp is configured on a separate partition",
+    "description": "The /tmp directory is a world-writable directory used for temporary file storage. Ensure it is mounted as a separate partition with appropriate mount options to restrict execution and device creation.",
+    "rationale": "Since /tmp is world-writable, making it a separate partition prevents it from being used to fill the root filesystem. Mounting with nodev, nosuid, and noexec prevents creation of device files, setuid binaries, and execution of malicious scripts.",
+    "severity": "medium",
+    "category": "filesystem",
+    "target_component_types": ["ubuntu", "linux", "vm"],
+    "check_content": "Run: findmnt -n /tmp | grep -E 'nodev|nosuid|noexec'\nVerify /tmp is mounted with nodev, nosuid, and noexec options.\nAlso check /etc/fstab for a dedicated /tmp entry.",
+    "fix_text": "Add or modify the /tmp entry in /etc/fstab:\ntmpfs /tmp tmpfs defaults,rw,nosuid,nodev,noexec,relatime 0 0\nThen run: mount -o remount /tmp"
+  },
+  {
+    "rule_id": "CIS-UBUNTU-1.3.1",
+    "title": "Ensure AIDE is installed and configured for file integrity monitoring",
+    "description": "AIDE (Advanced Intrusion Detection Environment) creates a database of file hashes to detect unauthorized changes to the filesystem.",
+    "rationale": "File integrity monitoring detects changes to critical system files that may indicate a compromise. Without it, unauthorized modifications can go unnoticed.",
+    "severity": "medium",
+    "category": "filesystem",
+    "target_component_types": ["ubuntu", "linux", "vm"],
+    "check_content": "Run: dpkg -s aide | grep -i status\nVerify AIDE is installed.\nRun: cat /etc/cron.d/aide or systemctl status aidecheck to verify regular checks are scheduled.",
+    "fix_text": "Install AIDE: apt install aide aide-common\nInitialize the database: aideinit\nCopy the database: cp /var/lib/aide/aide.db.new /var/lib/aide/aide.db\nSchedule regular checks in /etc/cron.d/aide: 0 5 * * * root /usr/bin/aide.wrapper --config /etc/aide/aide.conf --check"
+  },
+  {
+    "rule_id": "CIS-UBUNTU-1.4.1",
+    "title": "Ensure permissions on bootloader config are restricted (GRUB)",
+    "description": "The GRUB bootloader configuration file /boot/grub/grub.cfg should be owned by root and not readable or writable by other users.",
+    "rationale": "The GRUB configuration may contain sensitive information and must not be modified by unauthorized users. An attacker with write access could insert malicious boot parameters.",
+    "severity": "high",
+    "category": "filesystem",
+    "target_component_types": ["ubuntu", "linux", "vm"],
+    "check_content": "Run: stat /boot/grub/grub.cfg\nVerify Access is 0400 or more restrictive, owner is root, group is root.",
+    "fix_text": "Run the following commands:\nchown root:root /boot/grub/grub.cfg\nchmod og-rwx /boot/grub/grub.cfg"
+  },
+  {
+    "rule_id": "CIS-UBUNTU-3.1.1",
+    "title": "Disable IPv6 if not required",
+    "description": "IPv6 should be disabled on systems that do not require it to reduce the attack surface.",
+    "rationale": "If IPv6 is not needed, disabling it reduces the attack surface. An unmonitored IPv6 stack can be exploited even when IPv4 is properly secured.",
+    "severity": "medium",
+    "category": "network",
+    "target_component_types": ["ubuntu", "linux", "vm"],
+    "check_content": "Run: sysctl net.ipv6.conf.all.disable_ipv6\nExpected output: net.ipv6.conf.all.disable_ipv6 = 1\nAlso check /etc/sysctl.conf or /etc/sysctl.d/ for persistence.",
+    "fix_text": "Add to /etc/sysctl.conf or /etc/sysctl.d/60-disable-ipv6.conf:\nnet.ipv6.conf.all.disable_ipv6 = 1\nnet.ipv6.conf.default.disable_ipv6 = 1\nRun: sysctl -p"
+  },
+  {
+    "rule_id": "CIS-UBUNTU-5.2.4",
+    "title": "Ensure SSH Protocol 2 is enforced",
+    "description": "SSH Protocol 1 has known cryptographic vulnerabilities. Only SSH Protocol 2 should be permitted.",
+    "rationale": "SSH Protocol 1 suffers from design flaws including weak cryptography. Restricting to Protocol 2 ensures use of stronger encryption and key exchange algorithms.",
+    "severity": "high",
+    "category": "ssh",
+    "target_component_types": ["ubuntu", "linux", "vm"],
+    "check_content": "Run: sshd -T | grep -i protocol\nVerify output shows: protocol 2\nAlso check /etc/ssh/sshd_config for 'Protocol 2'.",
+    "fix_text": "Edit /etc/ssh/sshd_config and ensure:\nProtocol 2\nThen restart SSH: systemctl restart sshd"
+  },
+  {
+    "rule_id": "CIS-UBUNTU-5.2.7",
+    "title": "Ensure SSH root login is disabled",
+    "description": "Direct root login via SSH should be disabled. Administrators should log in as a regular user and escalate privilege as needed.",
+    "rationale": "Permitting direct root login increases the risk of brute-force attacks and removes accountability by eliminating the audit trail of user escalation.",
+    "severity": "high",
+    "category": "ssh",
+    "target_component_types": ["ubuntu", "linux", "vm"],
+    "check_content": "Run: sshd -T | grep permitrootlogin\nExpected: permitrootlogin no",
+    "fix_text": "Edit /etc/ssh/sshd_config:\nPermitRootLogin no\nRestart SSH: systemctl restart sshd"
+  },
+  {
+    "rule_id": "CIS-UBUNTU-5.3.1",
+    "title": "Ensure password hashing algorithm is SHA-512",
+    "description": "The SHA-512 algorithm provides stronger password hashing compared to MD5 or SHA-1.",
+    "rationale": "Weak password hashing allows offline dictionary or brute-force attacks. SHA-512 with salting significantly increases the cost of such attacks.",
+    "severity": "medium",
+    "category": "authentication",
+    "target_component_types": ["ubuntu", "linux", "vm"],
+    "check_content": "Run: grep -E '^\\$6' /etc/shadow | head -1\nThe $6$ prefix indicates SHA-512.\nAlso verify /etc/pam.d/common-password contains 'sha512'.",
+    "fix_text": "Edit /etc/pam.d/common-password and ensure the pam_unix.so line includes sha512:\npassword [success=1 default=ignore] pam_unix.so obscure sha512\nRe-hash existing passwords by having users change their passwords."
+  },
+  {
+    "rule_id": "CIS-UBUNTU-4.1.1",
+    "title": "Ensure auditd is installed and running",
+    "description": "The auditd daemon provides system call and file access auditing capabilities required for security monitoring and compliance.",
+    "rationale": "Without auditing, it is difficult to detect unauthorized access or changes to the system. Audit logs are critical for incident response and forensic analysis.",
+    "severity": "high",
+    "category": "audit",
+    "target_component_types": ["ubuntu", "linux", "vm"],
+    "check_content": "Run: dpkg -s auditd | grep -i status\nRun: systemctl is-active auditd\nExpected: active",
+    "fix_text": "Install and enable auditd:\napt install auditd audispd-plugins\nsystemctl enable auditd\nsystemctl start auditd"
+  },
+  {
+    "rule_id": "CIS-UBUNTU-6.1.2",
+    "title": "Ensure /etc/passwd file permissions are configured",
+    "description": "/etc/passwd must be owned by root with permissions 644 to prevent unauthorized modification of user account data.",
+    "rationale": "The /etc/passwd file contains account information for all local users. Incorrect permissions could allow unauthorized modifications that grant elevated privileges.",
+    "severity": "medium",
+    "category": "filesystem",
+    "target_component_types": ["ubuntu", "linux", "vm"],
+    "check_content": "Run: stat /etc/passwd\nVerify: Access: (0644/-rw-r--r--), Uid: (0/root), Gid: (0/root)",
+    "fix_text": "Run:\nchown root:root /etc/passwd\nchmod 644 /etc/passwd"
+  },
+  {
+    "rule_id": "CIS-UBUNTU-1.6.1",
+    "title": "Ensure AppArmor is enabled and enforcing profiles",
+    "description": "AppArmor provides mandatory access control (MAC) to restrict programs' capabilities. All loaded profiles should be in enforcing mode.",
+    "rationale": "AppArmor confines processes to only the resources they need, limiting the damage a compromised application can cause. Complain-mode profiles provide no protection.",
+    "severity": "high",
+    "category": "general",
+    "target_component_types": ["ubuntu", "linux", "vm"],
+    "check_content": "Run: apparmor_status | grep -E 'profiles are in enforce mode'\nVerify a nonzero number of profiles are in enforce mode.\nRun: systemctl is-active apparmor",
+    "fix_text": "Install and enable AppArmor:\napt install apparmor apparmor-profiles apparmor-utils\nsystemctl enable apparmor\nsystemctl start apparmor\nSet all profiles to enforce: aa-enforce /etc/apparmor.d/*"
+  }
+]
