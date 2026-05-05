@@ -5,7 +5,7 @@ import { listWorkspaces, listInstances, listJobs, createWorkspace, deleteWorkspa
 import { useWorkspace } from '../context/WorkspaceContext'
 import { complianceLevel } from '../types'
 
-const COLORS = { green: '#27ae60', orange: '#e67e22', red: '#c0392b' }
+const COLORS = { green: '#16a34a', orange: '#ea580c', red: '#dc2626' }
 
 export default function DashboardPage() {
   const { data: workspaces = [] } = useQuery({ queryKey: ['workspaces'], queryFn: listWorkspaces })

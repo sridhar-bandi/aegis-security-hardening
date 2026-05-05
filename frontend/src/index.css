@@ -3,15 +3,33 @@
 @tailwind utilities;
 
 :root {
-  --color-red: #c0392b;
-  --color-orange: #e67e22;
-  --color-green: #27ae60;
+  --color-red: #dc2626;
+  --color-orange: #ea580c;
+  --color-green: #16a34a;
 }
 
 html {
-  font-size: 18px;
+  font-size: 16px;
 }
 
 body {
-  @apply bg-gray-100 text-gray-900 font-sans;
+  @apply bg-slate-50 text-slate-900 font-sans antialiased;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-slate-100;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-300 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-slate-400;
 }

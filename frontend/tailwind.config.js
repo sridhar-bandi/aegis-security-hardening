@@ -4,11 +4,15 @@ export default {
   theme: {
     extend: {
       colors: {
-        'aegis-red': '#c0392b',
-        'aegis-orange': '#e67e22',
-        'aegis-green': '#27ae60',
-        'aegis-blue': '#2980b9',
-        'aegis-dark': '#2c3e50',
+        'aegis-red': '#dc2626',
+        'aegis-orange': '#ea580c',
+        'aegis-green': '#16a34a',
+        'aegis-blue': '#0284c7',
+        'aegis-dark': '#0f172a',
+        'aegis-accent': '#06b6d4',
+      },
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
       },
     },
   },
