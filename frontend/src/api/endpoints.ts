@@ -41,6 +41,8 @@ export const listPolicies = (workspaceId: string) =>
 export const listPolicyRules = (policyId: string) =>
   api.get<PolicyRule[]>(`/policies/${policyId}/rules`).then((r) => r.data)
 export const deletePolicy = (policyId: string) => api.delete(`/policies/${policyId}`)
+export const generatePolicyCodes = (policyId: string, ruleIds?: string[]) =>
+  api.post<{ task_id: string; channel: string }>(`/policies/${policyId}/generate-codes`, { rule_ids: ruleIds ?? null }).then((r) => r.data)
 
 // Solution Types
 export const listSolutionTypes = (workspaceId: string) =>
@@ -52,8 +54,10 @@ export const updateComponentSelection = (stId: string, selected_component_ids: s
 export const deleteSolutionType = (stId: string) => api.delete(`/solution-types/${stId}`)
 
 // Profiles
-export const createProfile = (name: string, solutionTypeId: string, policyId: string) =>
-  api.post<HardeningProfile>('/profiles', { name, solution_type_id: solutionTypeId, policy_id: policyId }).then((r) => r.data)
+export const listProfiles = (solutionTypeId: string) =>
+  api.get<HardeningProfile[]>('/profiles', { params: { solution_type_id: solutionTypeId } }).then((r) => r.data)
+export const createProfile = (name: string, solutionTypeId: string, componentPolicyMap: Record<string, string>) =>
+  api.post<HardeningProfile>('/profiles', { name, solution_type_id: solutionTypeId, component_policy_map: componentPolicyMap }).then((r) => r.data)
 export const getProfile = (profileId: string) =>
   api.get<HardeningProfile>(`/profiles/${profileId}`).then((r) => r.data)
 export const listProfileRules = (profileId: string) =>

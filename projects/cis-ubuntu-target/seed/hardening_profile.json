@@ -1,0 +1,77 @@
+{
+  "_comment": "CIS Ubuntu 22.04 test hardening profile — 10 rules for the cis-ubuntu-target container. Each rule entry is matched to its policy rule_id when the seed script runs.",
+  "profile_name": "CIS Ubuntu 22.04 — Test Target Profile",
+  "component_type": "ubuntu",
+  "rules": [
+    {
+      "rule_id": "CIS-UBUNTU-1.1.1",
+      "title": "Ensure /tmp is configured on a separate partition",
+      "evaluation_code": "out = connector.run_command('findmnt -n /tmp 2>/dev/null')\nline = out.output.strip()\nhas_nodev  = 'nodev'  in line\nhas_nosuid = 'nosuid' in line\nhas_noexec = 'noexec' in line\nresult['compliant'] = has_nodev and has_nosuid and has_noexec\nresult['details'] = ('findmnt output: \\\"' + line + '\\\". ' +\n    'nodev=' + str(has_nodev) +\n    ', nosuid=' + str(has_nosuid) +\n    ', noexec=' + str(has_noexec))",
+      "remediation_code": "cur = connector.run_command('findmnt -n /tmp 2>/dev/null')\nresult['saved_state'] = {'previous_tmp_options': cur.output.strip()}\nr = connector.run_command('python3 /aegis-scripts/aegis-state.py set rule_1_tmp_options rw,nosuid,nodev,noexec,relatime')\nresult['success'] = r.success\nresult['details'] = 'Set /tmp mount options to rw,nosuid,nodev,noexec,relatime in simulation state. ' + r.output",
+      "rollback_code": "prev = saved_state.get('previous_tmp_options', '')\nif prev:\n    r = connector.run_command('python3 /aegis-scripts/aegis-state.py set rule_1_tmp_options ' + prev)\nelse:\n    r = connector.run_command('python3 /aegis-scripts/aegis-state.py set rule_1_tmp_options empty')\n    connector.run_command('python3 /aegis-scripts/aegis-state.py set rule_1_tmp_options ')\nresult['success'] = True\nresult['details'] = 'Restored /tmp mount options to: \\\"' + str(prev) + '\\\"'"
+    },
+    {
+      "rule_id": "CIS-UBUNTU-1.3.1",
+      "title": "Ensure AIDE is installed and configured",
+      "evaluation_code": "out = connector.run_command('dpkg -s aide 2>/dev/null | grep -i Status')\nresult['compliant'] = 'install ok installed' in out.output.lower()\nresult['details'] = 'AIDE dpkg status: \\\"' + out.output.strip() + '\\\"'",
+      "remediation_code": "cur = connector.run_command('dpkg -s aide 2>/dev/null | grep -i Status')\nwas_installed = 'install ok installed' in cur.output.lower()\nresult['saved_state'] = {'previously_installed': was_installed}\nr1 = connector.run_command('python3 /aegis-scripts/aegis-state.py set rule_2_aide_installed true')\nr2 = connector.run_command('python3 /aegis-scripts/aegis-state.py set rule_2_aide_cron true')\nresult['success'] = r1.success\nresult['details'] = 'Simulated AIDE installation and cron schedule. ' + r1.output",
+      "rollback_code": "was_installed = saved_state.get('previously_installed', False)\nval = 'true' if was_installed else 'false'\nconnector.run_command('python3 /aegis-scripts/aegis-state.py set rule_2_aide_installed ' + val)\nconnector.run_command('python3 /aegis-scripts/aegis-state.py set rule_2_aide_cron false')\nresult['success'] = True\nresult['details'] = 'Rolled back AIDE installation state to: installed=' + str(was_installed)"
+    },
+    {
+      "rule_id": "CIS-UBUNTU-1.4.1",
+      "title": "Ensure permissions on bootloader config are restricted (GRUB)",
+      "evaluation_code": "out = connector.run_command('stat -c \"%a %U %G\" /boot/grub/grub.cfg 2>/dev/null')\nvals = out.output.strip().split()\nif len(vals) == 3:\n    perms, owner, group = vals\n    perms_int = int(perms, 8)\n    result['compliant'] = (not (perms_int & 0o177)) and owner == 'root' and group == 'root'\n    result['details'] = 'Permissions: ' + perms + ', Owner: ' + owner + ', Group: ' + group + '. Expected: 0400 root:root'\nelse:\n    result['compliant'] = False\n    result['details'] = 'Could not stat /boot/grub/grub.cfg: ' + out.output",
+      "remediation_code": "cur = connector.run_command('stat -c \"%a %U %G\" /boot/grub/grub.cfg 2>/dev/null')\nvals = cur.output.strip().split()\nresult['saved_state'] = {\n    'previous_perms': vals[0] if vals else '755',\n    'previous_owner': vals[1] if len(vals) > 1 else 'root',\n    'previous_group': vals[2] if len(vals) > 2 else 'root'\n}\nr1 = connector.run_command('sudo chown root:root /boot/grub/grub.cfg')\nr2 = connector.run_command('sudo chmod og-rwx /boot/grub/grub.cfg')\nresult['success'] = r2.success\nresult['details'] = 'Set /boot/grub/grub.cfg to root:root og-rwx. chown_ok=' + str(r1.success) + ', chmod_ok=' + str(r2.success)",
+      "rollback_code": "prev_perms = saved_state.get('previous_perms', '755')\nprev_owner = saved_state.get('previous_owner', 'root')\nprev_group = saved_state.get('previous_group', 'root')\nr1 = connector.run_command('sudo chown ' + prev_owner + ':' + prev_group + ' /boot/grub/grub.cfg')\nr2 = connector.run_command('sudo chmod ' + prev_perms + ' /boot/grub/grub.cfg')\nresult['success'] = r2.success\nresult['details'] = 'Restored /boot/grub/grub.cfg to ' + prev_perms + ' ' + prev_owner + ':' + prev_group"
+    },
+    {
+      "rule_id": "CIS-UBUNTU-3.1.1",
+      "title": "Disable IPv6 if not required",
+      "evaluation_code": "out = connector.run_command('sysctl net.ipv6.conf.all.disable_ipv6 2>/dev/null')\nresult['compliant'] = 'disable_ipv6 = 1' in out.output\nresult['details'] = 'sysctl output: \\\"' + out.output.strip() + '\\\"'",
+      "remediation_code": "cur = connector.run_command('sysctl net.ipv6.conf.all.disable_ipv6 2>/dev/null')\nwas_disabled = 'disable_ipv6 = 1' in cur.output\nresult['saved_state'] = {'previously_disabled': was_disabled}\nr = connector.run_command('python3 /aegis-scripts/aegis-state.py set rule_4_ipv6_disabled true')\nresult['success'] = r.success\nresult['details'] = 'Simulated disabling IPv6. ' + r.output",
+      "rollback_code": "was_disabled = saved_state.get('previously_disabled', False)\nval = 'true' if was_disabled else 'false'\nr = connector.run_command('python3 /aegis-scripts/aegis-state.py set rule_4_ipv6_disabled ' + val)\nresult['success'] = r.success\nresult['details'] = 'Restored IPv6 disabled state to: ' + val"
+    },
+    {
+      "rule_id": "CIS-UBUNTU-5.2.4",
+      "title": "Ensure SSH Protocol 2 is enforced",
+      "evaluation_code": "out = connector.run_command('sshd -T 2>/dev/null | grep -i \"^protocol\"')\nresult['compliant'] = 'protocol 2' in out.output.lower()\nresult['details'] = 'SSH protocol line: \\\"' + out.output.strip() + '\\\"'",
+      "remediation_code": "cur = connector.run_command('sshd -T 2>/dev/null | grep -i \"^protocol\"')\nprev_proto = '2' if 'protocol 2' in cur.output.lower() else '1'\nresult['saved_state'] = {'previous_protocol': prev_proto}\nr = connector.run_command('python3 /aegis-scripts/aegis-state.py set rule_5_ssh_protocol 2')\nresult['success'] = r.success\nresult['details'] = 'Set SSH protocol state to 2. ' + r.output",
+      "rollback_code": "prev_proto = saved_state.get('previous_protocol', '1')\nr = connector.run_command('python3 /aegis-scripts/aegis-state.py set rule_5_ssh_protocol ' + str(prev_proto))\nresult['success'] = r.success\nresult['details'] = 'Restored SSH protocol state to: ' + str(prev_proto)"
+    },
+    {
+      "rule_id": "CIS-UBUNTU-5.2.7",
+      "title": "Ensure SSH root login is disabled",
+      "evaluation_code": "out = connector.run_command('sshd -T 2>/dev/null | grep -i permitrootlogin')\nresult['compliant'] = 'permitrootlogin no' in out.output.lower()\nresult['details'] = 'SSH permitrootlogin line: \\\"' + out.output.strip() + '\\\"'",
+      "remediation_code": "cur = connector.run_command('sshd -T 2>/dev/null | grep -i permitrootlogin')\nprev_val = 'no' if 'permitrootlogin no' in cur.output.lower() else 'yes'\nresult['saved_state'] = {'previous_root_login': prev_val}\nr = connector.run_command('python3 /aegis-scripts/aegis-state.py set rule_6_ssh_root_login no')\nresult['success'] = r.success\nresult['details'] = 'Set SSH PermitRootLogin to no. ' + r.output",
+      "rollback_code": "prev_val = saved_state.get('previous_root_login', 'yes')\nr = connector.run_command('python3 /aegis-scripts/aegis-state.py set rule_6_ssh_root_login ' + str(prev_val))\nresult['success'] = r.success\nresult['details'] = 'Restored SSH PermitRootLogin to: ' + str(prev_val)"
+    },
+    {
+      "rule_id": "CIS-UBUNTU-5.3.1",
+      "title": "Ensure password hashing algorithm is SHA-512",
+      "evaluation_code": "out = connector.run_command('grep pam_unix /etc/pam.d/common-password 2>/dev/null')\nresult['compliant'] = 'sha512' in out.output.lower()\nresult['details'] = 'pam_unix line in common-password: \\\"' + out.output.strip() + '\\\"'",
+      "remediation_code": "cur = connector.run_command('grep pam_unix /etc/pam.d/common-password 2>/dev/null')\nhas_sha512 = 'sha512' in cur.output.lower()\nhas_md5    = 'md5'    in cur.output.lower()\nprev_hash = 'sha512' if has_sha512 else ('md5' if has_md5 else 'md5')\nresult['saved_state'] = {'previous_hash': prev_hash}\nr = connector.run_command('sudo sed -i \"s/obscure md5/obscure sha512/\" /etc/pam.d/common-password')\nresult['success'] = r.success\nverify = connector.run_command('grep pam_unix /etc/pam.d/common-password 2>/dev/null')\nresult['details'] = 'Updated PAM to SHA-512. Current line: \\\"' + verify.output.strip() + '\\\"'",
+      "rollback_code": "prev_hash = saved_state.get('previous_hash', 'md5')\nr = connector.run_command('sudo sed -i \"s/obscure sha512/obscure ' + prev_hash + '/\" /etc/pam.d/common-password')\nresult['success'] = r.success\nverify = connector.run_command('grep pam_unix /etc/pam.d/common-password 2>/dev/null')\nresult['details'] = 'Rolled back PAM hash to ' + prev_hash + '. Current: \\\"' + verify.output.strip() + '\\\"'"
+    },
+    {
+      "rule_id": "CIS-UBUNTU-4.1.1",
+      "title": "Ensure auditd is installed and running",
+      "evaluation_code": "out = connector.run_command('systemctl is-active auditd 2>/dev/null')\nresult['compliant'] = out.output.strip() == 'active'\nresult['details'] = 'auditd systemctl status: \\\"' + out.output.strip() + '\\\"'",
+      "remediation_code": "cur = connector.run_command('systemctl is-active auditd 2>/dev/null')\nwas_active = cur.output.strip() == 'active'\nresult['saved_state'] = {'previously_active': was_active}\nr1 = connector.run_command('python3 /aegis-scripts/aegis-state.py set rule_8_auditd_active true')\nresult['success'] = r1.success\nresult['details'] = 'Simulated auditd installation and activation. ' + r1.output",
+      "rollback_code": "was_active = saved_state.get('previously_active', False)\nval = 'true' if was_active else 'false'\nr = connector.run_command('python3 /aegis-scripts/aegis-state.py set rule_8_auditd_active ' + val)\nresult['success'] = r.success\nresult['details'] = 'Restored auditd active state to: ' + val"
+    },
+    {
+      "rule_id": "CIS-UBUNTU-6.1.2",
+      "title": "Ensure /etc/passwd file permissions are configured",
+      "evaluation_code": "out = connector.run_command('stat -c \"%a %U %G\" /etc/passwd 2>/dev/null')\nvals = out.output.strip().split()\nif len(vals) == 3:\n    perms, owner, group = vals\n    result['compliant'] = (perms == '644') and (owner == 'root') and (group == 'root')\n    result['details'] = 'Permissions: ' + perms + ', Owner: ' + owner + ', Group: ' + group + '. Expected: 644 root:root'\nelse:\n    result['compliant'] = False\n    result['details'] = 'Could not stat /etc/passwd: ' + out.output",
+      "remediation_code": "cur = connector.run_command('stat -c \"%a %U %G\" /etc/passwd 2>/dev/null')\nvals = cur.output.strip().split()\nresult['saved_state'] = {\n    'previous_perms': vals[0] if vals else '664',\n    'previous_owner': vals[1] if len(vals) > 1 else 'root',\n    'previous_group': vals[2] if len(vals) > 2 else 'root'\n}\nr1 = connector.run_command('sudo chown root:root /etc/passwd')\nr2 = connector.run_command('sudo chmod 644 /etc/passwd')\nresult['success'] = r2.success\nresult['details'] = 'Set /etc/passwd to 644 root:root. chown_ok=' + str(r1.success) + ', chmod_ok=' + str(r2.success)",
+      "rollback_code": "prev_perms = saved_state.get('previous_perms', '664')\nprev_owner = saved_state.get('previous_owner', 'root')\nprev_group = saved_state.get('previous_group', 'root')\nr1 = connector.run_command('sudo chown ' + prev_owner + ':' + prev_group + ' /etc/passwd')\nr2 = connector.run_command('sudo chmod ' + prev_perms + ' /etc/passwd')\nresult['success'] = r2.success\nresult['details'] = 'Restored /etc/passwd to ' + prev_perms + ' ' + prev_owner + ':' + prev_group"
+    },
+    {
+      "rule_id": "CIS-UBUNTU-1.6.1",
+      "title": "Ensure AppArmor is enabled and enforcing profiles",
+      "evaluation_code": "out = connector.run_command('apparmor_status 2>/dev/null | grep \"profiles are in enforce mode\"')\nparts = out.output.strip().split()\ncount = int(parts[0]) if parts and parts[0].isdigit() else 0\nresult['compliant'] = count > 0\nresult['details'] = 'AppArmor enforcing profiles: ' + str(count) + '. Line: \\\"' + out.output.strip() + '\\\"'",
+      "remediation_code": "cur = connector.run_command('apparmor_status 2>/dev/null | grep \"profiles are in enforce mode\"')\nparts = cur.output.strip().split()\nprev_count = int(parts[0]) if parts and parts[0].isdigit() else 0\nresult['saved_state'] = {'previous_enforcing_count': prev_count}\nr = connector.run_command('python3 /aegis-scripts/aegis-state.py set rule_10_apparmor_enforcing 5')\nresult['success'] = r.success\nresult['details'] = 'Simulated AppArmor with 5 enforcing profiles. ' + r.output",
+      "rollback_code": "prev_count = saved_state.get('previous_enforcing_count', 0)\nr = connector.run_command('python3 /aegis-scripts/aegis-state.py set rule_10_apparmor_enforcing ' + str(prev_count))\nresult['success'] = r.success\nresult['details'] = 'Restored AppArmor enforcing count to: ' + str(prev_count)"
+    }
+  ]
+}

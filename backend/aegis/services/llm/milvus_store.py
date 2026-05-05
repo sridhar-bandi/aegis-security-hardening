@@ -98,3 +98,51 @@ class MilvusRuleStore:
                 metadata=meta,
             ))
         return similar
+
+    async def get_codes_by_rule_id(
+        self, rule_id: str, component_type: str | None = None
+    ) -> dict[str, str]:
+        """
+        Retrieve generated code (eval/rem/rollback) from the contextual store
+        for a given rule_id.  If component_type is supplied, prefers the
+        component-specific variant (stored as ``rule_id:component_type``).
+
+        Returns a dict with keys ``eval_code``, ``rem_code``, ``rollback_code``
+        (empty strings when not found).
+        """
+        if self._collection is None:
+            self.connect()
+
+        empty: dict[str, str] = {"eval_code": "", "rem_code": "", "rollback_code": ""}
+
+        # Try component-specific variant first
+        candidates = [f"{rule_id}:{component_type}"] if component_type else []
+        candidates.append(rule_id)
+
+        for rid in candidates:
+            try:
+                query_embedding = await self._client.embed(rid)
+                results = self._collection.search(
+                    data=[query_embedding],
+                    anns_field="embedding",
+                    param={"metric_type": "COSINE", "params": {"nprobe": 10}},
+                    limit=5,
+                    output_fields=["rule_id", "metadata_json"],
+                )
+                for hit in results[0]:
+                    if hit.entity.get("rule_id", "") == rid:
+                        try:
+                            meta = json.loads(hit.entity.get("metadata_json", "{}"))
+                        except json.JSONDecodeError:
+                            meta = {}
+                        return {
+                            "eval_code": meta.get("eval_code", ""),
+                            "rem_code": meta.get("rem_code", ""),
+                            "rollback_code": meta.get("rollback_code", ""),
+                        }
+            except Exception as exc:
+                logger.warning(
+                    "Milvus get_codes_by_rule_id failed for rule_id=%s: %s", rid, exc
+                )
+
+        return empty

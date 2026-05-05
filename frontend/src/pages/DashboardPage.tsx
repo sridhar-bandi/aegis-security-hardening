@@ -2,12 +2,14 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { listWorkspaces, listInstances, listJobs, createWorkspace, deleteWorkspace } from '../api/endpoints'
+import { useWorkspace } from '../context/WorkspaceContext'
 import { complianceLevel } from '../types'
 
 const COLORS = { green: '#27ae60', orange: '#e67e22', red: '#c0392b' }
 
 export default function DashboardPage() {
   const { data: workspaces = [] } = useQuery({ queryKey: ['workspaces'], queryFn: listWorkspaces })
+  const { selectedWorkspace, setSelectedWorkspaceId } = useWorkspace()
   const queryClient = useQueryClient()
   const [showForm, setShowForm] = useState(false)
   const [name, setName] = useState('')
@@ -82,14 +84,30 @@ export default function DashboardPage() {
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {workspaces.map((ws) => (
-          <WorkspaceCard key={ws.id} workspaceId={ws.id} workspaceName={ws.name} />
+          <WorkspaceCard
+            key={ws.id}
+            workspaceId={ws.id}
+            workspaceName={ws.name}
+            isActive={selectedWorkspace?.id === ws.id}
+            onSelect={() => setSelectedWorkspaceId(ws.id)}
+          />
         ))}
       </div>
     </div>
   )
 }
 
-function WorkspaceCard({ workspaceId, workspaceName }: { workspaceId: string; workspaceName: string }) {
+function WorkspaceCard({
+  workspaceId,
+  workspaceName,
+  isActive,
+  onSelect,
+}: {
+  workspaceId: string
+  workspaceName: string
+  isActive: boolean
+  onSelect: () => void
+}) {
   const qc = useQueryClient()
   const { data: instances = [] } = useQuery({
     queryKey: ['instances', workspaceId],
@@ -118,9 +136,14 @@ function WorkspaceCard({ workspaceId, workspaceName }: { workspaceId: string; wo
   ].filter((d) => d.value > 0)
 
   return (
-    <div className="bg-white rounded-xl shadow p-5">
+    <div className={`bg-white rounded-xl shadow p-5 border-2 transition-colors ${isActive ? 'border-aegis-dark' : 'border-transparent'}`}>
       <div className="flex items-start justify-between mb-1">
-        <h3 className="font-semibold text-lg text-aegis-dark">{workspaceName}</h3>
+        <div className="flex items-center gap-2 min-w-0">
+          <h3 className="font-semibold text-lg text-aegis-dark truncate">{workspaceName}</h3>
+          {isActive && (
+            <span className="flex-shrink-0 text-xs bg-aegis-dark text-white px-2 py-0.5 rounded-full">Active</span>
+          )}
+        </div>
         <button
           onClick={() => {
             if (window.confirm(`Delete workspace "${workspaceName}"? This will permanently delete all policies, solution types, instances, and jobs within it.`)) {
@@ -135,7 +158,15 @@ function WorkspaceCard({ workspaceId, workspaceName }: { workspaceId: string; wo
           </svg>
         </button>
       </div>
-      <p className="text-sm text-gray-400 mb-4">{instances.length} instance(s)</p>
+      <p className="text-sm text-gray-400 mb-3">{instances.length} instance(s)</p>
+      {!isActive && (
+        <button
+          onClick={onSelect}
+          className="text-xs text-aegis-dark border border-aegis-dark rounded px-3 py-1 hover:bg-aegis-dark hover:text-white transition-colors mb-3"
+        >
+          Use this workspace
+        </button>
+      )}
       <div
         className="text-3xl font-bold mb-2"
         style={{ color: COLORS[level] }}

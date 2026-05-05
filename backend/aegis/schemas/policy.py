@@ -15,6 +15,7 @@ class PolicyResponse(BaseModel):
     description: str | None
     standard: str
     format: str
+    code_status: str
     created_at: datetime
 
 
@@ -32,6 +33,11 @@ class PolicyRuleResponse(BaseModel):
     target_component_types: list[str] | None
     check_content: str | None
     fix_text: str | None
+    # LLM-generated baseline code fields
+    evaluation_code: str | None
+    remediation_code: str | None
+    rollback_code: str | None
+    code_status: str
     created_at: datetime
 
 
@@ -42,3 +48,7 @@ class PolicyImportRequest(BaseModel):
     workspace_id: uuid.UUID
     name: str
     standard: str = "Custom"
+
+
+class PolicyCodeGenRequest(BaseModel):
+    rule_ids: list[uuid.UUID] | None = None

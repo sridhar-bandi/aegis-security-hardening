@@ -15,11 +15,10 @@ from aegis.config import settings
 from aegis.database import get_db
 from aegis.models.policy import Policy, PolicyRule
 from aegis.models.user import User
-from aegis.schemas.policy import PolicyImportRequest, PolicyResponse, PolicyRuleResponse
+from aegis.schemas.policy import PolicyImportRequest, PolicyCodeGenRequest, PolicyResponse, PolicyRuleResponse
 from aegis.services.rbac import check_workspace_access, get_current_user, require_role
 
 router = APIRouter(prefix="/policies", tags=["policies"])
-
 
 async def _parse_policy_file(file_path: str, fmt: str) -> list:
     if fmt == "OVAL":
@@ -95,6 +94,11 @@ async def upload_policy(
 
     await db.commit()
     await db.refresh(policy_obj)
+
+    # Auto-trigger development-stage code generation for all imported rules
+    from aegis.tasks.codegen_tasks import generate_policy_codes
+    generate_policy_codes.delay(str(policy_obj.id))
+
     return PolicyResponse.model_validate(policy_obj)
 
 
@@ -126,6 +130,35 @@ async def list_policy_rules(
         select(PolicyRule).where(PolicyRule.policy_id == policy_id).order_by(PolicyRule.severity)
     )
     return [PolicyRuleResponse.model_validate(r) for r in rules_result.scalars().all()]
+
+
+@router.post("/{policy_id}/generate-codes", status_code=status.HTTP_202_ACCEPTED)
+async def trigger_policy_code_generation(
+    policy_id: uuid.UUID,
+    body: PolicyCodeGenRequest,
+    current_user: Annotated[User, Depends(require_role("admin", "security_officer"))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    """
+    Development stage: trigger LLM code generation for every rule in a policy.
+    Generated code (evaluate / remediate / rollback) is stored on each PolicyRule
+    and upserted into the Milvus contextual data store for retrieval during enforcement.
+    """
+    result = await db.execute(select(Policy).where(Policy.id == policy_id))
+    policy = result.scalar_one_or_none()
+    if policy is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Policy not found")
+    await check_workspace_access(policy.workspace_id, current_user, db)
+
+    from aegis.tasks.codegen_tasks import generate_policy_codes
+    str_rule_ids = [str(r) for r in body.rule_ids] if body.rule_ids else None
+    task = generate_policy_codes.delay(str(policy_id), str_rule_ids)
+    return {
+        "task_id": task.id,
+        "status": "accepted",
+        "policy_id": str(policy_id),
+        "channel": f"ws:codegen:policy:{policy_id}",
+    }
 
 
 @router.delete("/{policy_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)

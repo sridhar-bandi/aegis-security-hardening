@@ -29,6 +29,7 @@ export interface Policy {
   description: string | null
   standard: string
   format: string
+  code_status: 'pending' | 'generating' | 'generated' | 'reviewed' | 'approved' | 'rejected'
   created_at: string
 }
 
@@ -60,7 +61,8 @@ export interface HardeningProfile {
   id: string
   name: string
   solution_type_id: string
-  policy_id: string
+  policy_id: string | null
+  component_policy_map: Record<string, string> | null
   status: 'draft' | 'generating' | 'ready'
   created_at: string
 }

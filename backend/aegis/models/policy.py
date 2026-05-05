@@ -29,6 +29,11 @@ class Policy(Base):
         default="text",
     )
     file_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    code_status: Mapped[str] = mapped_column(
+        Enum("pending", "generating", "generated", "reviewed", "approved", "rejected", name="code_status"),
+        nullable=False,
+        default="pending",
+    )
     created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
@@ -54,8 +59,18 @@ class PolicyRule(Base):
     target_component_types: Mapped[list | None] = mapped_column(JSON, nullable=True)
     check_content: Mapped[str | None] = mapped_column(Text, nullable=True)
     fix_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # LLM-generated code stored at the policy rule level (canonical / baseline)
+    evaluation_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    remediation_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    rollback_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    code_status: Mapped[str] = mapped_column(
+        Enum("pending", "generating", "generated", "reviewed", "approved", "rejected", name="code_status"),
+        nullable=False,
+        default="pending",
+    )
     milvus_embedding_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     policy: Mapped["Policy"] = relationship("Policy", back_populates="rules")
     profile_rules: Mapped[list["ProfileRule"]] = relationship("ProfileRule", back_populates="policy_rule")

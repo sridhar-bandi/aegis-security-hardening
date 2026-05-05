@@ -85,19 +85,60 @@ async def _load_instance_and_rules(
     pr_result = await db.execute(query)
     profile_rules = list(pr_result.scalars().all())
 
-    # Join policy rule data
     enriched = []
     for pr in profile_rules:
         pol_result = await db.execute(select(PolicyRule).where(PolicyRule.id == pr.policy_rule_id))
         pol_rule = pol_result.scalar_one_or_none()
+
+        # Use profile-rule approved code; fall back to policy-rule baseline code
+        eval_code = pr.evaluation_code or ""
+        rem_code = pr.remediation_code or ""
+        rollback_code = pr.rollback_code or ""
+
+        if not eval_code and pol_rule and pol_rule.evaluation_code:
+            eval_code = pol_rule.evaluation_code
+            logger.debug(
+                "Using policy-level baseline eval_code for profile_rule %s (rule_id=%s)",
+                pr.id, pol_rule.rule_id,
+            )
+        if not rem_code and pol_rule and pol_rule.remediation_code:
+            rem_code = pol_rule.remediation_code
+        if not rollback_code and pol_rule and pol_rule.rollback_code:
+            rollback_code = pol_rule.rollback_code
+
+        # Secondary fallback: Milvus contextual store
+        if pol_rule and (not eval_code or not rem_code or not rollback_code):
+            try:
+                from aegis.services.llm.milvus_store import MilvusRuleStore
+                store = MilvusRuleStore()
+                codes = await store.get_codes_by_rule_id(
+                    pol_rule.rule_id, component_type=pr.component_type
+                )
+                if not eval_code:
+                    eval_code = codes.get("eval_code", "")
+                if not rem_code:
+                    rem_code = codes.get("rem_code", "")
+                if not rollback_code:
+                    rollback_code = codes.get("rollback_code", "")
+                if eval_code:
+                    logger.debug(
+                        "Using Milvus-retrieved code for rule_id=%s component=%s",
+                        pol_rule.rule_id, pr.component_type,
+                    )
+            except Exception as milvus_exc:
+                logger.warning(
+                    "Milvus code lookup failed for rule_id=%s: %s",
+                    pol_rule.rule_id if pol_rule else "?", milvus_exc,
+                )
+
         enriched.append({
             "profile_rule_id": str(pr.id),
             "rule_id": pol_rule.rule_id if pol_rule else "",
             "title": pol_rule.title if pol_rule else "",
             "component_type": pr.component_type,
-            "evaluation_code": pr.evaluation_code or "",
-            "remediation_code": pr.remediation_code or "",
-            "rollback_code": pr.rollback_code or "",
+            "evaluation_code": eval_code,
+            "remediation_code": rem_code,
+            "rollback_code": rollback_code,
             "saved_state": pr.saved_state or {},
             "risk_score": pr.risk_score,
         })

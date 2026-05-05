@@ -1,9 +1,11 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { WorkspaceProvider } from './context/WorkspaceContext'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import PolicyManagerPage from './pages/PolicyManagerPage'
 import SolutionTypeBuilderPage from './pages/SolutionTypeBuilderPage'
+import HardeningProfileManagerPage from './pages/HardeningProfileManagerPage'
 import HardeningProfileEditorPage from './pages/HardeningProfileEditorPage'
 import InstanceManagerPage from './pages/InstanceManagerPage'
 import EnforcementConsolePage from './pages/EnforcementConsolePage'
@@ -27,13 +29,16 @@ export default function App() {
             path="/"
             element={
               <ProtectedRoute>
-                <Layout />
+                <WorkspaceProvider>
+                  <Layout />
+                </WorkspaceProvider>
               </ProtectedRoute>
             }
           >
             <Route index element={<DashboardPage />} />
             <Route path="policies" element={<PolicyManagerPage />} />
             <Route path="solution-types" element={<SolutionTypeBuilderPage />} />
+            <Route path="profiles" element={<HardeningProfileManagerPage />} />
             <Route path="profiles/:profileId" element={<HardeningProfileEditorPage />} />
             <Route path="instances" element={<InstanceManagerPage />} />
             <Route path="instances/:instanceId/enforcement" element={<EnforcementConsolePage />} />

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { listWorkspaces, listPolicies, listPolicyRules, deletePolicy } from '../api/endpoints'
+import { listPolicies, listPolicyRules, deletePolicy } from '../api/endpoints'
+import { useWorkspace } from '../context/WorkspaceContext'
 import type { Policy, PolicyRule } from '../types'
 
 const SEVERITY_COLOR: Record<string, string> = {
@@ -10,10 +11,10 @@ const SEVERITY_COLOR: Record<string, string> = {
 
 export default function PolicyManagerPage() {
   const qc = useQueryClient()
-  const [workspaceId, setWorkspaceId] = useState('')
+  const { selectedWorkspace } = useWorkspace()
+  const workspaceId = selectedWorkspace?.id ?? ''
   const [selectedPolicy, setSelectedPolicy] = useState<Policy | null>(null)
 
-  const { data: workspaces = [] } = useQuery({ queryKey: ['workspaces'], queryFn: listWorkspaces })
   const { data: policies = [] } = useQuery({
     queryKey: ['policies', workspaceId],
     queryFn: () => listPolicies(workspaceId),
@@ -37,16 +38,12 @@ export default function PolicyManagerPage() {
     <div className="flex gap-6 h-full">
       <div className="w-72 flex-shrink-0">
         <h2 className="text-xl font-bold text-aegis-dark mb-4">Policy Manager</h2>
-        <select
-          value={workspaceId}
-          onChange={(e) => { setWorkspaceId(e.target.value); setSelectedPolicy(null) }}
-          className="w-full border rounded px-2 py-1 text-sm mb-4"
-        >
-          <option value="">Select workspace…</option>
-          {workspaces.map((ws) => (
-            <option key={ws.id} value={ws.id}>{ws.name}</option>
-          ))}
-        </select>
+
+        {!workspaceId && (
+          <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded px-3 py-2 mb-4">
+            Select a workspace from the header to manage policies.
+          </p>
+        )}
 
         {/* Upload policy form */}
         {workspaceId && <UploadPolicyForm workspaceId={workspaceId} onUploaded={() => qc.invalidateQueries({ queryKey: ['policies', workspaceId] })} />}

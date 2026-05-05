@@ -1,0 +1,12 @@
+{
+  "_comment": "Initial non-compliant state for all simulated CIS rules. Rules 3/7/9 use real filesystem objects.",
+
+  "rule_1_tmp_options":        "",
+  "rule_2_aide_installed":     false,
+  "rule_2_aide_cron":          false,
+  "rule_4_ipv6_disabled":      false,
+  "rule_5_ssh_protocol":       "1",
+  "rule_6_ssh_root_login":     "yes",
+  "rule_8_auditd_active":      false,
+  "rule_10_apparmor_enforcing": 0
+}

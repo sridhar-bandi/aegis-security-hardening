@@ -161,6 +161,36 @@ services:
     depends_on:
       - aegis-api
 
+  # ── CIS Ubuntu test target ──────────────────────────────────────────────────
+  # A purpose-built container that simulates a Ubuntu 22.04 system for testing
+  # the CIS Ubuntu 22.04 benchmark hardening profile (10 rules).
+  # It is NOT a real OS — it uses a JSON state file + mock shell commands so
+  # that Aegis can safely run evaluate / remediate / rollback against it.
+  #
+  # SSH access:  host=cis-ubuntu-target  port=22 (mapped to host 2222)
+  #              username=aegis-test  password=aegistest123
+  #
+  # After starting this service, run the seed script to register it in Aegis:
+  #   cd projects/cis-ubuntu-target/seed
+  #   pip install requests
+  #   python seed_instance.py --password <admin-password>
+  cis-ubuntu-target:
+    build: ./projects/cis-ubuntu-target
+    restart: unless-stopped
+    container_name: cis-ubuntu-target
+    hostname: cis-ubuntu-target
+    ports:
+      - "2222:22"
+    volumes:
+      - cis_ubuntu_state:/aegis-state
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD", "bash", "-c", "test -f /aegis-state/state.json"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   postgres_data:
   redis_data:
@@ -168,3 +198,4 @@ volumes:
   minio_data:
   milvus_data:
   reports_data:
+  cis_ubuntu_state:

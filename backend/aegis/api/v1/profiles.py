@@ -27,6 +27,26 @@ from aegis.services.rbac import check_workspace_access, get_current_user, requir
 router = APIRouter(prefix="/profiles", tags=["profiles"])
 
 
+@router.get("", response_model=list[HardeningProfileResponse])
+async def list_profiles(
+    solution_type_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> list[HardeningProfileResponse]:
+    """List all hardening profiles for a given solution type."""
+    st_result = await db.execute(select(SolutionType).where(SolutionType.id == solution_type_id))
+    st = st_result.scalar_one_or_none()
+    if st is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SolutionType not found")
+    await check_workspace_access(st.workspace_id, current_user, db)
+    result = await db.execute(
+        select(HardeningProfile)
+        .where(HardeningProfile.solution_type_id == solution_type_id)
+        .order_by(HardeningProfile.name)
+    )
+    return [HardeningProfileResponse.model_validate(p) for p in result.scalars().all()]
+
+
 @router.post("", response_model=HardeningProfileResponse, status_code=status.HTTP_201_CREATED)
 async def create_profile(
     body: HardeningProfileCreate,
@@ -40,23 +60,36 @@ async def create_profile(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SolutionType not found")
     await check_workspace_access(st.workspace_id, current_user, db)
 
+    # Validate that every component in the solution type has a policy assigned
+    components = st.component_selection or []
+    missing = [c for c in components if c not in body.component_policy_map]
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"No policy mapped for component(s): {', '.join(missing)}",
+        )
+
+    # Serialize map: UUID values → str for JSON storage
+    cpm_serialized = {k: str(v) for k, v in body.component_policy_map.items()}
+
     profile = HardeningProfile(
         id=uuid.uuid4(),
         name=body.name,
         solution_type_id=body.solution_type_id,
-        policy_id=body.policy_id,
+        component_policy_map=cpm_serialized,
         created_by=current_user.id,
     )
     db.add(profile)
     await db.flush()
 
-    # Create ProfileRules for each selected component × policy rule
-    if st.component_selection:
-        rules_result = await db.execute(
-            select(PolicyRule).where(PolicyRule.policy_id == body.policy_id)
-        )
-        policy_rules = rules_result.scalars().all()
-        for component_id in st.component_selection:
+    # Create ProfileRules: for each component, use its mapped policy's rules
+    if components:
+        for component_id in components:
+            policy_id = body.component_policy_map[component_id]
+            rules_result = await db.execute(
+                select(PolicyRule).where(PolicyRule.policy_id == policy_id)
+            )
+            policy_rules = rules_result.scalars().all()
             for pr in policy_rules:
                 db.add(ProfileRule(
                     id=uuid.uuid4(),
