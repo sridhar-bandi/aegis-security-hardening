@@ -17,6 +17,8 @@ class PolicyResponse(BaseModel):
     format: str
     code_status: str
     created_at: datetime
+    rule_count: int = 0
+    target_component_types: list[str] = []
 
 
 class PolicyRuleResponse(BaseModel):

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -12,6 +12,86 @@ import {
 } from '../api/endpoints'
 import { useWorkspace } from '../context/WorkspaceContext'
 import type { HardeningProfile, Policy, SolutionType } from '../types'
+
+// ── Component ID helpers ─────────────────────────────────────────────────────
+
+const ID_PREFIX_MAP: { prefix: string; category: string; suffix: string }[] = [
+  { prefix: 'server-', category: 'Server',          suffix: '— Host OS' },
+  { prefix: 'ilo-',    category: 'iLO',             suffix: '— iLO'     },
+  { prefix: 'switch-', category: 'Network Switch',  suffix: ''          },
+  { prefix: 'pdu-',    category: 'PDU',             suffix: ''          },
+  { prefix: 'storage-',category: 'Storage',         suffix: ''          },
+  { prefix: 'vm-',     category: 'Virtual Machine', suffix: ''          },
+]
+
+const CATEGORY_BADGE: Record<string, string> = {
+  'Server':          'bg-green-100 text-green-800',
+  'iLO':             'bg-orange-100 text-orange-800',
+  'Network Switch':  'bg-blue-100 text-blue-800',
+  'PDU':             'bg-yellow-100 text-yellow-800',
+  'Storage':         'bg-purple-100 text-purple-800',
+  'Virtual Machine': 'bg-indigo-100 text-indigo-800',
+}
+
+function humanizeCompId(id: string): { label: string; category: string } {
+  for (const { prefix, category, suffix } of ID_PREFIX_MAP) {
+    if (id.startsWith(prefix)) {
+      const rest = id.slice(prefix.length)
+      let label: string
+      if (prefix === 'server-' || prefix === 'ilo-') {
+        const dash = rest.lastIndexOf('-')
+        if (dash > 0 && dash < rest.length - 1) {
+          const type = rest.slice(0, dash).replace(/-/g, ' ')
+          const role = rest.slice(dash + 1)
+          label = `${type} (${role})`
+        } else {
+          label = rest.replace(/-/g, ' ')
+        }
+      } else if (prefix === 'vm-') {
+        const dash = rest.indexOf('-')
+        if (dash !== -1) {
+          label = `${rest.slice(0, dash)} (${rest.slice(dash + 1)})`
+        } else {
+          label = rest
+        }
+      } else {
+        label = rest.replace(/-/g, ' ')
+      }
+      return { label: suffix ? `${label} ${suffix}` : label, category }
+    }
+  }
+  return { label: id, category: 'Other' }
+}
+
+// ── Policy auto-matching ─────────────────────────────────────────────────────
+
+// Keywords per component category used to score policy relevance
+const COMPONENT_POLICY_KEYWORDS: Record<string, string[]> = {
+  'server-':  ['ubuntu', 'linux', 'server', 'host', 'os', 'rhel', 'centos', 'debian', 'windows'],
+  'ilo-':     ['ilo', 'bmc', 'baseboard', 'redfish', 'out-of-band', 'hpe ilo'],
+  'switch-':  ['switch', 'network', 'aruba', 'cisco', 'juniper', 'nexus', 'mellanox', 'cumulus'],
+  'pdu-':     ['pdu', 'power distribution', 'powerstrip'],
+  'storage-': ['storage', 'alletra', 'san', 'nas', 'vastdata'],
+  'vm-':      ['vmware', 'esxi', 'virtual', 'vm', 'hypervisor', 'vsphere'],
+}
+
+function findBestPolicy(compId: string, policies: Policy[]): string {
+  if (policies.length === 0) return ''
+  const prefix = Object.keys(COMPONENT_POLICY_KEYWORDS).find((p) => compId.startsWith(p))
+  if (!prefix) return ''
+  const keywords = COMPONENT_POLICY_KEYWORDS[prefix]
+  let bestId = ''
+  let bestScore = 0
+  for (const policy of policies) {
+    const hay = `${policy.name} ${policy.standard} ${policy.description ?? ''}`.toLowerCase()
+    const score = keywords.reduce((acc, kw) => acc + (hay.includes(kw) ? 1 : 0), 0)
+    if (score > bestScore) {
+      bestScore = score
+      bestId = policy.id
+    }
+  }
+  return bestId
+}
 
 const STATUS_BADGE: Record<string, string> = {
   draft:      'bg-gray-100 text-gray-600',
@@ -108,10 +188,41 @@ export default function HardeningProfileManagerPage() {
     (selectedST?.component_selection ?? []).length > 0 &&
     (selectedST?.component_selection ?? []).every((c: string) => !!componentPolicyMap[c])
 
+  // Build default policy map for a given component selection + available policies
+  const buildDefaultPolicyMap = useCallback(
+    (componentIds: string[]): Record<string, string> => {
+      const map: Record<string, string> = {}
+      for (const compId of componentIds) {
+        const best = findBestPolicy(compId, policies)
+        if (best) map[compId] = best
+      }
+      return map
+    },
+    [policies],
+  )
+
   const handleSolutionTypeChange = (id: string) => {
     setSolutionTypeId(id)
-    setComponentPolicyMap({})
+    const st = solutionTypes.find((s: SolutionType) => s.id === id)
+    setComponentPolicyMap(buildDefaultPolicyMap(st?.component_selection ?? []))
   }
+
+  // Re-apply defaults when policies finish loading (they may arrive after ST selection)
+  useEffect(() => {
+    if (!selectedST?.component_selection?.length || !policies.length) return
+    setComponentPolicyMap((prev) => {
+      // Only fill in components that have no assignment yet
+      const updated = { ...prev }
+      let changed = false
+      for (const compId of selectedST.component_selection as string[]) {
+        if (!updated[compId]) {
+          const best = findBestPolicy(compId, policies)
+          if (best) { updated[compId] = best; changed = true }
+        }
+      }
+      return changed ? updated : prev
+    })
+  }, [policies, selectedST])
 
   return (
     <div>
@@ -236,11 +347,19 @@ export default function HardeningProfileManagerPage() {
                 </p>
               )}
               <div className="divide-y border rounded overflow-hidden">
-                {(selectedST!.component_selection as string[]).map((compId: string) => (
+                {(selectedST!.component_selection as string[]).map((compId: string) => {
+                  const { label, category } = humanizeCompId(compId)
+                  const badgeClass = CATEGORY_BADGE[category] ?? 'bg-gray-100 text-gray-700'
+                  return (
                   <div key={compId} className="flex items-center gap-3 px-3 py-2 bg-white">
-                    <span className="text-sm font-medium text-aegis-dark w-48 shrink-0 truncate" title={compId}>
-                      {compId}
-                    </span>
+                    <div className="flex items-center gap-2 w-56 shrink-0">
+                      <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${badgeClass}`}>
+                        {category}
+                      </span>
+                      <span className="text-sm font-medium text-aegis-dark truncate" title={compId}>
+                        {label}
+                      </span>
+                    </div>
                     <select
                       value={componentPolicyMap[compId] ?? ''}
                       onChange={(e) =>
@@ -264,7 +383,8 @@ export default function HardeningProfileManagerPage() {
                       <span className="text-gray-300 text-sm shrink-0">○</span>
                     )}
                   </div>
-                ))}
+                  )
+                })}
               </div>
               {(selectedST!.component_selection as string[]).some((c: string) => !componentPolicyMap[c]) && (
                 <p className="text-xs text-amber-500 mt-1">

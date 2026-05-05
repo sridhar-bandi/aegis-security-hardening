@@ -31,6 +31,8 @@ export interface Policy {
   format: string
   code_status: 'pending' | 'generating' | 'generated' | 'reviewed' | 'approved' | 'rejected'
   created_at: string
+  rule_count: number
+  target_component_types: string[]
 }
 
 export interface PolicyRule {
@@ -79,6 +81,8 @@ export interface ProfileRule {
   risk_score: number
   created_at: string
   updated_at: string
+  rule_title: string | null
+  rule_short_id: string | null
 }
 
 export interface HITLComment {

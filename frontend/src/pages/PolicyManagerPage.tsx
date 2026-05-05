@@ -14,6 +14,7 @@ export default function PolicyManagerPage() {
   const { selectedWorkspace } = useWorkspace()
   const workspaceId = selectedWorkspace?.id ?? ''
   const [selectedPolicy, setSelectedPolicy] = useState<Policy | null>(null)
+  const [showImport, setShowImport] = useState(false)
 
   const { data: policies = [] } = useQuery({
     queryKey: ['policies', workspaceId],
@@ -36,8 +37,19 @@ export default function PolicyManagerPage() {
 
   return (
     <div className="flex gap-6 h-full">
-      <div className="w-72 flex-shrink-0">
-        <h2 className="text-xl font-bold text-aegis-dark mb-4">Policy Manager</h2>
+      <div className="w-72 flex-shrink-0 flex flex-col">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-aegis-dark">Policy Manager</h2>
+          {workspaceId && (
+            <a
+              href="#import-policy"
+              onClick={(e) => { e.preventDefault(); setShowImport(true) }}
+              className="text-sm text-aegis-dark hover:underline font-medium"
+            >
+              + Import Policy
+            </a>
+          )}
+        </div>
 
         {!workspaceId && (
           <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded px-3 py-2 mb-4">
@@ -45,10 +57,11 @@ export default function PolicyManagerPage() {
           </p>
         )}
 
-        {/* Upload policy form */}
-        {workspaceId && <UploadPolicyForm workspaceId={workspaceId} onUploaded={() => qc.invalidateQueries({ queryKey: ['policies', workspaceId] })} />}
-
-        <div className="mt-4 flex flex-col gap-2">
+        {/* Policy list at the top */}
+        <div className="flex flex-col gap-2">
+          {policies.length === 0 && workspaceId && (
+            <p className="text-xs text-gray-400 italic">No policies yet. Import one to get started.</p>
+          )}
           {policies.map((p) => (
             <button
               key={p.id}
@@ -57,6 +70,16 @@ export default function PolicyManagerPage() {
             >
               <div className="font-medium">{p.name}</div>
               <div className="text-xs opacity-60">{p.standard} / {p.format}</div>
+              <div className="flex items-center gap-2 mt-1">
+                <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${selectedPolicy?.id === p.id ? 'bg-white/20 text-white' : 'bg-aegis-dark/10 text-aegis-dark'}`}>
+                  {p.rule_count} {p.rule_count === 1 ? 'rule' : 'rules'}
+                </span>
+                {p.target_component_types.length > 0 && (
+                  <span className="text-xs opacity-70 truncate" title={p.target_component_types.join(', ')}>
+                    {p.target_component_types.slice(0, 2).join(', ')}{p.target_component_types.length > 2 ? ` +${p.target_component_types.length - 2}` : ''}
+                  </span>
+                )}
+              </div>
             </button>
           ))}
         </div>
@@ -80,11 +103,23 @@ export default function PolicyManagerPage() {
           <p className="text-gray-400">Select a policy to view its rules.</p>
         )}
       </div>
+
+      {/* Import Policy Modal */}
+      {showImport && workspaceId && (
+        <ImportPolicyModal
+          workspaceId={workspaceId}
+          onClose={() => setShowImport(false)}
+          onImported={() => {
+            qc.invalidateQueries({ queryKey: ['policies', workspaceId] })
+            setShowImport(false)
+          }}
+        />
+      )}
     </div>
   )
 }
 
-function UploadPolicyForm({ workspaceId, onUploaded }: { workspaceId: string; onUploaded: () => void }) {
+function ImportPolicyModal({ workspaceId, onClose, onImported }: { workspaceId: string; onClose: () => void; onImported: () => void }) {
   const [name, setName] = useState('')
   const [fmt, setFmt] = useState('json')
   const [standard, setStandard] = useState('Custom')
@@ -111,9 +146,7 @@ function UploadPolicyForm({ workspaceId, onUploaded }: { workspaceId: string; on
         setError(body?.detail ?? `Upload failed (${res.status})`)
         return
       }
-      setName('')
-      setFile(null)
-      onUploaded()
+      onImported()
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Network error')
     } finally {
@@ -122,23 +155,70 @@ function UploadPolicyForm({ workspaceId, onUploaded }: { workspaceId: string; on
   }
 
   return (
-    <div className="bg-white rounded-lg p-3 shadow text-sm flex flex-col gap-2">
-      <p className="font-medium text-aegis-dark">Upload Policy</p>
-      <input placeholder="Policy name" value={name} onChange={(e) => setName(e.target.value)} className="border rounded px-2 py-1" />
-      <select value={fmt} onChange={(e) => setFmt(e.target.value)} className="border rounded px-2 py-1">
-        <option value="json">JSON</option>
-        <option value="text">Plain Text</option>
-        <option value="OVAL">OVAL XML</option>
-        <option value="XCCDF">XCCDF XML</option>
-      </select>
-      <select value={standard} onChange={(e) => setStandard(e.target.value)} className="border rounded px-2 py-1">
-        {['CIS', 'STIG', 'SRG', 'Custom'].map((s) => <option key={s}>{s}</option>)}
-      </select>
-      <input type="file" accept=".xml,.txt,.json" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="text-xs" />
-      {error && <p className="text-xs text-red-600">{error}</p>}
-      <button onClick={handleUpload} disabled={uploading || !file || !name} className="bg-aegis-dark text-white rounded py-1 disabled:opacity-50">
-        {uploading ? 'Uploading…' : 'Upload'}
-      </button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div
+        className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 flex flex-col gap-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold text-aegis-dark">Import Policy</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none">&times;</button>
+        </div>
+
+        <div className="flex flex-col gap-3 text-sm">
+          <label className="flex flex-col gap-1">
+            <span className="font-medium text-gray-700">Policy Name <span className="text-red-500">*</span></span>
+            <input
+              placeholder="e.g. CIS Ubuntu 22.04 L1"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-aegis-dark"
+            />
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="font-medium text-gray-700">Format</span>
+            <select value={fmt} onChange={(e) => setFmt(e.target.value)} className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-aegis-dark">
+              <option value="json">JSON</option>
+              <option value="text">Plain Text</option>
+              <option value="OVAL">OVAL XML</option>
+              <option value="XCCDF">XCCDF XML</option>
+            </select>
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="font-medium text-gray-700">Standard</span>
+            <select value={standard} onChange={(e) => setStandard(e.target.value)} className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-aegis-dark">
+              {['CIS', 'STIG', 'SRG', 'Custom'].map((s) => <option key={s}>{s}</option>)}
+            </select>
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="font-medium text-gray-700">Policy File <span className="text-red-500">*</span></span>
+            <input
+              type="file"
+              accept=".xml,.txt,.json"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              className="text-sm file:mr-3 file:rounded file:border-0 file:bg-aegis-dark file:text-white file:px-3 file:py-1 file:cursor-pointer"
+            />
+          </label>
+
+          {error && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</p>}
+        </div>
+
+        <div className="flex gap-3 pt-1">
+          <button onClick={onClose} className="flex-1 border rounded py-2 text-sm text-gray-600 hover:bg-gray-50">
+            Cancel
+          </button>
+          <button
+            onClick={handleUpload}
+            disabled={uploading || !file || !name}
+            className="flex-1 bg-aegis-dark text-white rounded py-2 text-sm disabled:opacity-50 hover:opacity-90"
+          >
+            {uploading ? 'Importing…' : 'Import'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

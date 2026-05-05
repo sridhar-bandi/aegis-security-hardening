@@ -39,6 +39,9 @@ class ProfileRuleResponse(BaseModel):
     risk_score: float
     created_at: datetime
     updated_at: datetime
+    # Denormalised from the linked PolicyRule for convenient display
+    rule_title: str | None = None
+    rule_short_id: str | None = None
 
 
 class ProfileRuleCodeUpdate(BaseModel):

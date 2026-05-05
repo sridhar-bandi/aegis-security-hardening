@@ -128,10 +128,22 @@ async def list_profile_rules(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> list[ProfileRuleResponse]:
+    from sqlalchemy.orm import selectinload
     result = await db.execute(
-        select(ProfileRule).where(ProfileRule.profile_id == profile_id).order_by(ProfileRule.code_status)
+        select(ProfileRule)
+        .options(selectinload(ProfileRule.policy_rule))
+        .where(ProfileRule.profile_id == profile_id)
+        .order_by(ProfileRule.component_type, ProfileRule.created_at)
     )
-    return [ProfileRuleResponse.model_validate(r) for r in result.scalars().all()]
+    rows = result.scalars().all()
+    out = []
+    for r in rows:
+        data = ProfileRuleResponse.model_validate(r)
+        if r.policy_rule is not None:
+            data.rule_title = r.policy_rule.title
+            data.rule_short_id = r.policy_rule.rule_id
+        out.append(data)
+    return out
 
 
 @router.patch("/{profile_id}/rules/{rule_id}/code", response_model=ProfileRuleResponse)

@@ -112,7 +112,33 @@ async def list_policies(
     result = await db.execute(
         select(Policy).where(Policy.workspace_id == workspace_id).order_by(Policy.name)
     )
-    return [PolicyResponse.model_validate(p) for p in result.scalars().all()]
+    policies = result.scalars().all()
+
+    # Fetch rule counts and component types — avoid GROUP BY on JSON column
+    if policies:
+        policy_ids = [p.id for p in policies]
+        rules_result = await db.execute(
+            select(PolicyRule.policy_id, PolicyRule.target_component_types)
+            .where(PolicyRule.policy_id.in_(policy_ids))
+        )
+        rule_rows = rules_result.all()
+        counts: dict = {}
+        ctypes: dict = {}
+        for row in rule_rows:
+            pid = row.policy_id
+            counts[pid] = counts.get(pid, 0) + 1
+            for ct in (row.target_component_types or []):
+                ctypes.setdefault(pid, set()).add(ct)
+    else:
+        counts, ctypes = {}, {}
+
+    out = []
+    for p in policies:
+        data = PolicyResponse.model_validate(p)
+        data.rule_count = counts.get(p.id, 0)
+        data.target_component_types = sorted(ctypes.get(p.id, set()))
+        out.append(data)
+    return out
 
 
 @router.get("/{policy_id}/rules", response_model=list[PolicyRuleResponse])
