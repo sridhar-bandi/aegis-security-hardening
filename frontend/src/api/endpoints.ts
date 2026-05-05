@@ -56,6 +56,8 @@ export const deleteSolutionType = (stId: string) => api.delete(`/solution-types/
 // Profiles
 export const listProfiles = (solutionTypeId: string) =>
   api.get<HardeningProfile[]>('/profiles', { params: { solution_type_id: solutionTypeId } }).then((r) => r.data)
+export const listAllProfiles = (workspaceId: string) =>
+  api.get<HardeningProfile[]>('/profiles', { params: { workspace_id: workspaceId } }).then((r) => r.data)
 export const createProfile = (name: string, solutionTypeId: string, componentPolicyMap: Record<string, string>) =>
   api.post<HardeningProfile>('/profiles', { name, solution_type_id: solutionTypeId, component_policy_map: componentPolicyMap }).then((r) => r.data)
 export const getProfile = (profileId: string) =>

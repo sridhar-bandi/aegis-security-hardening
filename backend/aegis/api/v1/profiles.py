@@ -29,21 +29,33 @@ router = APIRouter(prefix="/profiles", tags=["profiles"])
 
 @router.get("", response_model=list[HardeningProfileResponse])
 async def list_profiles(
-    solution_type_id: uuid.UUID,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    solution_type_id: uuid.UUID | None = None,
+    workspace_id: uuid.UUID | None = None,
 ) -> list[HardeningProfileResponse]:
-    """List all hardening profiles for a given solution type."""
-    st_result = await db.execute(select(SolutionType).where(SolutionType.id == solution_type_id))
-    st = st_result.scalar_one_or_none()
-    if st is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SolutionType not found")
-    await check_workspace_access(st.workspace_id, current_user, db)
-    result = await db.execute(
-        select(HardeningProfile)
-        .where(HardeningProfile.solution_type_id == solution_type_id)
-        .order_by(HardeningProfile.name)
-    )
+    """List hardening profiles filtered by solution_type_id or workspace_id."""
+    if solution_type_id is not None:
+        st_result = await db.execute(select(SolutionType).where(SolutionType.id == solution_type_id))
+        st = st_result.scalar_one_or_none()
+        if st is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SolutionType not found")
+        await check_workspace_access(st.workspace_id, current_user, db)
+        result = await db.execute(
+            select(HardeningProfile)
+            .where(HardeningProfile.solution_type_id == solution_type_id)
+            .order_by(HardeningProfile.name)
+        )
+    elif workspace_id is not None:
+        await check_workspace_access(workspace_id, current_user, db)
+        result = await db.execute(
+            select(HardeningProfile)
+            .join(SolutionType, HardeningProfile.solution_type_id == SolutionType.id)
+            .where(SolutionType.workspace_id == workspace_id)
+            .order_by(HardeningProfile.name)
+        )
+    else:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Provide solution_type_id or workspace_id")
     return [HardeningProfileResponse.model_validate(p) for p in result.scalars().all()]
 
 
