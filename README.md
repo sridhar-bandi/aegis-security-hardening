@@ -62,9 +62,12 @@ AEGIS is an AI-driven security hardening platform for HPE Private Cloud solution
 |---|---|
 | **Policy Import** | Upload OVAL, XCCDF, or plain-text policy files; rules are parsed and stored per workspace |
 | **AI Code Generation** | LLM generates `evaluate`, `remediate`, and `rollback` Python snippets for each policy rule using RAG (Milvus vector store) |
-| **Hardening Profiles** | Compose a profile from selected policy rules; approve, edit, or regenerate the AI-produced code |
+| **Policy Profiles** | Create standard (all rules) or tailored (selected rules) profiles from a policy; customize rule selection, promote to locked state for deployment |
+| **Rule Review Workflow** | Approve, reject, or import implementation code for individual rules; view code status across the profile |
+| **Implementation Editor** | Full-featured code editor (Monaco) for reviewing and editing generated evaluate/remediate/rollback code per rule |
+| **Hardening Blueprints** | Compose multi-component blueprints using locked profiles; map components to profiles for deployment |
 | **Solution Types** | Define target infrastructure types (server, switch, Kubernetes cluster, etc.) with their connector configuration schema |
-| **Instance Manager** | Register live infrastructure instances and associate them with a hardening profile |
+| **Instance Manager** | Register live infrastructure instances and associate them with a hardening blueprint |
 | **Enforcement Console** | Run evaluate, dry-run, remediate, or rollback against an instance; stream real-time status via WebSocket |
 | **Compliance Dashboard** | Aggregated pass/fail compliance reports per instance |
 | **User Management** | Full RBAC with four roles; workspace-scoped access control |
@@ -195,9 +198,10 @@ All API routes are prefixed with `/api/v1`. Authentication uses OAuth2 Bearer to
 | Auth | `/api/v1/auth` | Login, token refresh, register |
 | Users | `/api/v1/users` | User CRUD, role assignment |
 | Workspaces | `/api/v1/workspaces` | Workspace and member management |
-| Policies | `/api/v1/policies` | Upload and browse security policies (OVAL/XCCDF/text) |
+| Policies | `/api/v1/policies` | Upload and browse security policies; list/review policy rules |
+| Profiles | `/api/v1/profiles` | Policy profile CRUD (standard/tailored); promote, lock, version |
 | Solution Types | `/api/v1/solution-types` | Define infrastructure target types |
-| Profiles | `/api/v1/profiles` | Hardening profile CRUD; trigger LLM code generation |
+| Blueprints | `/api/v1/blueprints` | Hardening blueprints with component-to-profile mapping; rule code review |
 | Instances | `/api/v1/instances` | Register instances; trigger enforcement jobs |
 | WebSocket | `/ws/{channel}` | Real-time job progress (codegen, enforcement) |
 
@@ -289,8 +293,16 @@ Aegis-SecurityHardening/
 │   └── src/
 │       ├── api/              # Axios client + endpoint definitions
 │       ├── components/       # Feature UI components
-│       ├── context/          # AuthContext (JWT state)
+│       ├── context/          # AuthContext, WorkspaceContext
 │       ├── pages/            # Top-level page components
+│       │   ├── DashboardPage
+│       │   ├── PolicyManagerPage         # Policy import, profiles, rule overview
+│       │   ├── PolicyImplementationEditorPage  # Monaco code editor for rule review
+│       │   ├── HardeningBlueprintManagerPage   # Blueprint creation with profile mapping
+│       │   ├── HardeningBlueprintEditorPage    # Blueprint rule code review
+│       │   ├── InstanceManagerPage       # Instance registration
+│       │   ├── EnforcementConsolePage    # Enforcement execution + live logs
+│       │   └── UserManagementPage
 │       └── types/            # TypeScript type definitions
 ├── projects/
 │   └── PCAI/scid/            # HPE PCAI infrastructure layout definitions
