@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class RollbackRuleResult:
-    profile_rule_id: str
+    blueprint_rule_id: str
     rule_id: str
     success: bool
     details: str
@@ -32,11 +32,11 @@ class RollbackEngine:
         instance_id: str,
         component_type: str,
         endpoint_config: dict,
-        profile_rules: list[dict],
+        blueprint_rules: list[dict],
         vault_connector: VaultConnector | None = None,
     ) -> RollbackReport:
         """
-        profile_rules must include `saved_state` (dict) from the DB record.
+        blueprint_rules must include `saved_state` (dict) from the DB record.
         Runs rollback_code restoring state.
         """
         resolved_config = endpoint_config
@@ -46,7 +46,7 @@ class RollbackEngine:
         report = RollbackReport(instance_id=instance_id)
 
         with create_connector(component_type, resolved_config) as connector:
-            for rule in profile_rules:
+            for rule in blueprint_rules:
                 result = self._rollback_rule(connector, rule)
                 report.results.append(result)
 
@@ -65,11 +65,11 @@ class RollbackEngine:
             "ConnectorResult": ConnectorResult,
         }
         try:
-            exec(compile(code, f"rollback_{rule['profile_rule_id']}", "exec"), namespace)  # noqa: S102
+            exec(compile(code, f"rollback_{rule['blueprint_rule_id']}", "exec"), namespace)  # noqa: S102
         except Exception as exc:
             logger.exception("Rollback code exec failed for rule %s: %s", rule.get("rule_id"), exc)
             return RollbackRuleResult(
-                profile_rule_id=rule["profile_rule_id"],
+                blueprint_rule_id=rule["blueprint_rule_id"],
                 rule_id=rule.get("rule_id", ""),
                 success=False,
                 details="",
@@ -78,7 +78,7 @@ class RollbackEngine:
 
         r = namespace.get("result", {})
         return RollbackRuleResult(
-            profile_rule_id=rule["profile_rule_id"],
+            blueprint_rule_id=rule["blueprint_rule_id"],
             rule_id=rule.get("rule_id", ""),
             success=bool(r.get("success", False)),
             details=str(r.get("details", "")),

@@ -1,11 +1,11 @@
-"""Hardening profile schemas."""
+"""Hardening blueprint schemas."""
 from __future__ import annotations
 import uuid
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
 
-class HardeningProfileCreate(BaseModel):
+class HardeningBlueprintCreate(BaseModel):
     name: str
     solution_type_id: uuid.UUID
     # Maps each component_type (string) to the policy_id (UUID) that governs it.
@@ -13,7 +13,7 @@ class HardeningProfileCreate(BaseModel):
     component_policy_map: dict[str, uuid.UUID]
 
 
-class HardeningProfileResponse(BaseModel):
+class HardeningBlueprintResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
@@ -25,11 +25,11 @@ class HardeningProfileResponse(BaseModel):
     created_at: datetime
 
 
-class ProfileRuleResponse(BaseModel):
+class BlueprintRuleResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    profile_id: uuid.UUID
+    blueprint_id: uuid.UUID
     policy_rule_id: uuid.UUID
     component_type: str
     evaluation_code: str | None
@@ -44,7 +44,7 @@ class ProfileRuleResponse(BaseModel):
     rule_short_id: str | None = None
 
 
-class ProfileRuleCodeUpdate(BaseModel):
+class BlueprintRuleCodeUpdate(BaseModel):
     evaluation_code: str | None = None
     remediation_code: str | None = None
     rollback_code: str | None = None
@@ -59,7 +59,7 @@ class HITLCommentResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    profile_rule_id: uuid.UUID
+    blueprint_rule_id: uuid.UUID
     author_id: uuid.UUID | None
     comment_text: str
     comment_type: str

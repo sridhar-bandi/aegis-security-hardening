@@ -63,7 +63,7 @@ async def _load_instance_and_rules(
 ) -> tuple[Any, list[Any]]:
     from sqlalchemy import select
     from aegis.models.solution_instance import SolutionInstance
-    from aegis.models.hardening_profile import ProfileRule, HardeningProfile
+    from aegis.models.hardening_blueprint import BlueprintRule, HardeningBlueprint
     from aegis.models.policy import PolicyRule
 
     result = await db.execute(
@@ -74,23 +74,23 @@ async def _load_instance_and_rules(
         raise ValueError(f"Instance {instance_id} not found")
 
     query = (
-        select(ProfileRule)
-        .join(HardeningProfile, ProfileRule.profile_id == HardeningProfile.id)
-        .where(HardeningProfile.id == instance.profile_id)
-        .where(ProfileRule.code_status == code_status_filter)
+        select(BlueprintRule)
+        .join(HardeningBlueprint, BlueprintRule.blueprint_id == HardeningBlueprint.id)
+        .where(HardeningBlueprint.id == instance.blueprint_id)
+        .where(BlueprintRule.code_status == code_status_filter)
     )
     if rule_ids:
-        query = query.where(ProfileRule.id.in_([uuid.UUID(r) for r in rule_ids]))
+        query = query.where(BlueprintRule.id.in_([uuid.UUID(r) for r in rule_ids]))
 
     pr_result = await db.execute(query)
-    profile_rules = list(pr_result.scalars().all())
+    blueprint_rules = list(pr_result.scalars().all())
 
     enriched = []
-    for pr in profile_rules:
+    for pr in blueprint_rules:
         pol_result = await db.execute(select(PolicyRule).where(PolicyRule.id == pr.policy_rule_id))
         pol_rule = pol_result.scalar_one_or_none()
 
-        # Use profile-rule approved code; fall back to policy-rule baseline code
+        # Use blueprint-rule approved code; fall back to policy-rule baseline code
         eval_code = pr.evaluation_code or ""
         rem_code = pr.remediation_code or ""
         rollback_code = pr.rollback_code or ""
@@ -98,7 +98,7 @@ async def _load_instance_and_rules(
         if not eval_code and pol_rule and pol_rule.evaluation_code:
             eval_code = pol_rule.evaluation_code
             logger.debug(
-                "Using policy-level baseline eval_code for profile_rule %s (rule_id=%s)",
+                "Using policy-level baseline eval_code for blueprint_rule %s (rule_id=%s)",
                 pr.id, pol_rule.rule_id,
             )
         if not rem_code and pol_rule and pol_rule.remediation_code:
@@ -132,7 +132,7 @@ async def _load_instance_and_rules(
                 )
 
         enriched.append({
-            "profile_rule_id": str(pr.id),
+            "blueprint_rule_id": str(pr.id),
             "rule_id": pol_rule.rule_id if pol_rule else "",
             "title": pol_rule.title if pol_rule else "",
             "component_type": pr.component_type,
@@ -201,7 +201,7 @@ async def _evaluate_async(job_id: str, instance_id: str) -> dict:
 
 async def _remediate_async(job_id: str, instance_id: str, rule_ids: list[str] | None) -> dict:
     from sqlalchemy import update
-    from aegis.models.hardening_profile import ProfileRule
+    from aegis.models.hardening_blueprint import BlueprintRule
     from aegis.services.enforcement.remediator import Remediator
     engine, SessionFactory = _make_engine()
     redis_client = Redis.from_url(settings.REDIS_URL)
@@ -223,8 +223,8 @@ async def _remediate_async(job_id: str, instance_id: str, rule_ids: list[str] | 
             for r in report.results:
                 if r.saved_state:
                     await db.execute(
-                        update(ProfileRule)
-                        .where(ProfileRule.id == uuid.UUID(r.profile_rule_id))
+                        update(BlueprintRule)
+                        .where(BlueprintRule.id == uuid.UUID(r.blueprint_rule_id))
                         .values(saved_state=r.saved_state)
                     )
             await db.commit()

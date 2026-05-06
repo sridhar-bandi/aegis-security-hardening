@@ -364,7 +364,7 @@ export default function SolutionTypeBuilderPage() {
               </button>
               <button
                 onClick={() => {
-                  if (window.confirm(`Delete solution type "${st.name}"? This will also delete all associated profiles.`)) {
+                  if (window.confirm(`Delete solution type "${st.name}"? This will also delete all associated blueprints.`)) {
                     deleteMut.mutate(st.id)
                   }
                 }}

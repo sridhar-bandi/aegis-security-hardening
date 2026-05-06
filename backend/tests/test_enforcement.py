@@ -116,7 +116,7 @@ class TestDryRunEngine:
             {"source": "A", "target": "B", "tls_versions": ["TLSv1.3"],
              "cipher_suites": [], "port": 443},
         ]
-        rules = [{"rule_id": "r1", "profile_rule_id": "pr1", "title": "T",
+        rules = [{"rule_id": "r1", "blueprint_rule_id": "pr1", "title": "T",
                   "component_type": "Vault", "risk_score": 0}]
         report = self._run(topology, rules)
         # Component "Vault" not in graph → no impacted channels → safe
@@ -128,7 +128,7 @@ class TestDryRunEngine:
             {"source": "WebServer", "target": "DB", "tls_versions": ["TLSv1"],
              "cipher_suites": ["RC4"], "port": 5432},
         ]
-        rules = [{"rule_id": "r2", "profile_rule_id": "pr2", "title": "Disable RC4",
+        rules = [{"rule_id": "r2", "blueprint_rule_id": "pr2", "title": "Disable RC4",
                   "component_type": "WebServer", "risk_score": 9}]
         report = self._run(topology, rules)
         assert len(report.breaking_rules) == 1

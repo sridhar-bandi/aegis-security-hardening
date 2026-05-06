@@ -1,16 +1,17 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import {
   listInstances,
-  createInstance,
+  createInstanceWithScid,
   deleteInstance,
+  uploadScid,
   listSolutionTypes,
   listPolicies,
-  listProfiles,
+  listBlueprints,
 } from '../api/endpoints'
 import { useWorkspace } from '../context/WorkspaceContext'
-import type { HardeningProfile, Policy, SolutionInstance, SolutionType } from '../types'
+import type { HardeningBlueprint, Policy, SolutionInstance, SolutionType } from '../types'
 
 export default function InstanceManagerPage() {
   const qc = useQueryClient()
@@ -20,8 +21,10 @@ export default function InstanceManagerPage() {
 
   // Selection state
   const [solutionTypeId, setSolutionTypeId] = useState('')
-  const [profileId, setProfileId] = useState('')
+  const [blueprintId, setBlueprintId] = useState('')
   const [newName, setNewName] = useState('')
+  const [scidFile, setScidFile] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Data queries
   const { data: solutionTypes = [] } = useQuery({
@@ -36,9 +39,9 @@ export default function InstanceManagerPage() {
     enabled: !!workspaceId,
   })
 
-  const { data: profiles = [] } = useQuery({
-    queryKey: ['profiles', solutionTypeId],
-    queryFn: () => listProfiles(solutionTypeId),
+  const { data: blueprints = [] } = useQuery({
+    queryKey: ['blueprints', solutionTypeId],
+    queryFn: () => listBlueprints(solutionTypeId),
     enabled: !!solutionTypeId,
   })
 
@@ -55,27 +58,30 @@ export default function InstanceManagerPage() {
   // Selected solution type details
   const selectedSolutionType = solutionTypeId ? stMap[solutionTypeId] : null
 
-  // Applicable policies: those referenced by profiles for the selected solution type
-  const applicablePolicyIds = new Set(profiles.map((p: HardeningProfile) => p.policy_id))
+  // Applicable policies: those referenced by blueprints for the selected solution type
+  const applicablePolicyIds = new Set(blueprints.map((p: HardeningBlueprint) => p.policy_id))
   const applicablePolicies = policies.filter((p: Policy) => applicablePolicyIds.has(p.id))
 
   const handleSolutionTypeChange = (id: string) => {
     setSolutionTypeId(id)
-    setProfileId('')
+    setBlueprintId('')
   }
 
   const createMut = useMutation({
     mutationFn: () =>
-      createInstance(
+      createInstanceWithScid(
         workspaceId,
         newName,
+        scidFile || undefined,
         solutionTypeId || undefined,
-        profileId || undefined,
+        blueprintId || undefined,
       ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['instances', workspaceId] })
       setNewName('')
-      setProfileId('')
+      setBlueprintId('')
+      setScidFile(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
     },
   })
 
@@ -98,7 +104,7 @@ export default function InstanceManagerPage() {
       <div className="bg-white rounded-lg shadow p-5 mb-8">
         <h3 className="font-semibold text-aegis-dark mb-4">Create New Instance</h3>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-4">
           {/* Step 1 – Solution Type */}
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">1. Solution Type</label>
@@ -118,17 +124,17 @@ export default function InstanceManagerPage() {
             )}
           </div>
 
-          {/* Step 2 – Profile (ties policy to solution type) */}
+          {/* Step 2 – Blueprint (ties policy to solution type) */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">2. Hardening Profile</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1">2. Hardening Blueprint</label>
             <select
-              value={profileId}
-              onChange={(e) => setProfileId(e.target.value)}
+              value={blueprintId}
+              onChange={(e) => setBlueprintId(e.target.value)}
               disabled={!solutionTypeId}
               className="w-full border rounded px-2 py-1.5 text-sm disabled:opacity-50 disabled:bg-gray-50"
             >
-              <option value="">Select profile…</option>
-              {profiles.map((p: HardeningProfile) => {
+              <option value="">Select blueprint…</option>
+              {blueprints.map((p: HardeningBlueprint) => {
                 const policy = p.policy_id ? policyMap[p.policy_id] : undefined
                 return (
                   <option key={p.id} value={p.id}>
@@ -137,8 +143,8 @@ export default function InstanceManagerPage() {
                 )
               })}
             </select>
-            {profiles.length === 0 && solutionTypeId && (
-              <p className="text-xs text-amber-500 mt-1">No profiles yet for this solution type</p>
+            {blueprints.length === 0 && solutionTypeId && (
+              <p className="text-xs text-amber-500 mt-1">No blueprints yet for this solution type</p>
             )}
           </div>
 
@@ -151,6 +157,22 @@ export default function InstanceManagerPage() {
               onChange={(e) => setNewName(e.target.value)}
               className="w-full border rounded px-2 py-1.5 text-sm"
             />
+          </div>
+
+          {/* Step 4 – SCID JSON Upload */}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">4. SCID JSON (optional)</label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json,application/json"
+              onChange={(e) => setScidFile(e.target.files?.[0] || null)}
+              className="w-full border rounded px-2 py-1.5 text-sm file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-xs file:bg-aegis-dark file:text-white"
+            />
+            {scidFile && (
+              <p className="text-xs text-green-600 mt-1">Selected: {scidFile.name}</p>
+            )}
+            <p className="text-xs text-gray-400 mt-1">Upload infra-layout JSON with IPs &amp; credentials</p>
           </div>
         </div>
 
@@ -198,6 +220,11 @@ export default function InstanceManagerPage() {
               {st && (
                 <div className="text-xs text-blue-700 bg-blue-50 rounded px-2 py-0.5 inline-block mb-1">
                   {st.name}
+                </div>
+              )}
+              {inst.scid_filename && (
+                <div className="text-xs text-green-700 bg-green-50 rounded px-2 py-0.5 inline-block mb-1 ml-1">
+                  SCID: {inst.scid_filename}
                 </div>
               )}
               <div className="text-xs text-gray-400 mb-3 font-mono truncate">{inst.id}</div>

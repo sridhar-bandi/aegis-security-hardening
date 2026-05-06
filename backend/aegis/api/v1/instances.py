@@ -1,10 +1,11 @@
 """Solution Instances router — Enforcement Stage CRUD + enforcement actions."""
 from __future__ import annotations
 
+import json
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,10 +37,105 @@ async def create_instance(
         workspace_id=body.workspace_id,
         name=body.name,
         solution_type_id=body.solution_type_id,
-        profile_id=body.profile_id,
+        blueprint_id=body.blueprint_id,
+        scid_json=body.scid_json,
+        scid_filename=body.scid_filename,
         owner_id=current_user.id,
     )
     db.add(inst)
+    await db.commit()
+    await db.refresh(inst)
+    return SolutionInstanceResponse.model_validate(inst)
+
+
+@router.post("/upload", response_model=SolutionInstanceResponse, status_code=status.HTTP_201_CREATED)
+async def create_instance_with_scid_upload(
+    workspace_id: Annotated[str, Form()],
+    name: Annotated[str, Form()],
+    current_user: Annotated[User, Depends(require_role("admin", "security_officer"))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    solution_type_id: Annotated[str | None, Form()] = None,
+    blueprint_id: Annotated[str | None, Form()] = None,
+    scid_file: UploadFile | None = File(None),
+) -> SolutionInstanceResponse:
+    """Create an instance with an optional SCID JSON file upload containing infrastructure credentials."""
+    ws_id = uuid.UUID(workspace_id)
+    await check_workspace_access(ws_id, current_user, db)
+
+    scid_data = None
+    scid_filename = None
+    if scid_file and scid_file.filename:
+        if not scid_file.content_type or "json" not in scid_file.content_type:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="SCID file must be a JSON file",
+            )
+        raw = await scid_file.read()
+        if len(raw) > 10 * 1024 * 1024:  # 10 MB limit
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail="SCID file exceeds 10 MB limit",
+            )
+        try:
+            scid_data = json.loads(raw)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="SCID file is not valid JSON",
+            )
+        scid_filename = scid_file.filename
+
+    inst = SolutionInstance(
+        id=uuid.uuid4(),
+        workspace_id=ws_id,
+        name=name,
+        solution_type_id=uuid.UUID(solution_type_id) if solution_type_id else None,
+        blueprint_id=uuid.UUID(blueprint_id) if blueprint_id else None,
+        scid_json=scid_data,
+        scid_filename=scid_filename,
+        owner_id=current_user.id,
+    )
+    db.add(inst)
+    await db.commit()
+    await db.refresh(inst)
+    return SolutionInstanceResponse.model_validate(inst)
+
+
+@router.put("/{instance_id}/scid", response_model=SolutionInstanceResponse)
+async def upload_scid(
+    instance_id: uuid.UUID,
+    current_user: Annotated[User, Depends(require_role("admin", "security_officer"))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    scid_file: UploadFile = File(...),
+) -> SolutionInstanceResponse:
+    """Upload or replace the SCID JSON for an existing instance."""
+    result = await db.execute(select(SolutionInstance).where(SolutionInstance.id == instance_id))
+    inst = result.scalar_one_or_none()
+    if inst is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instance not found")
+    await check_workspace_access(inst.workspace_id, current_user, db)
+
+    if not scid_file.content_type or "json" not in scid_file.content_type:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="SCID file must be a JSON file",
+        )
+    raw = await scid_file.read()
+    if len(raw) > 10 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="SCID file exceeds 10 MB limit",
+        )
+    try:
+        scid_data = json.loads(raw)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="SCID file is not valid JSON",
+        )
+
+    inst.scid_json = scid_data
+    inst.scid_filename = scid_file.filename
     await db.commit()
     await db.refresh(inst)
     return SolutionInstanceResponse.model_validate(inst)

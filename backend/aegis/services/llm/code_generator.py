@@ -1,4 +1,4 @@
-"""Code generator: generates evaluate/remediate/rollback code for profile rules."""
+"""Code generator: generates evaluate/remediate/rollback code for blueprint rules."""
 from __future__ import annotations
 
 import logging

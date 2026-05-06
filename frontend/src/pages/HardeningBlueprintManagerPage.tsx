@@ -4,13 +4,13 @@ import { useNavigate } from 'react-router-dom'
 import {
   listSolutionTypes,
   listPolicies,
-  listAllProfiles,
-  createProfile,
-  deleteProfile,
+  listAllBlueprints,
+  createBlueprint,
+  deleteBlueprint,
   triggerCodeGen,
 } from '../api/endpoints'
 import { useWorkspace } from '../context/WorkspaceContext'
-import type { HardeningProfile, Policy, SolutionType } from '../types'
+import type { HardeningBlueprint, Policy, SolutionType } from '../types'
 
 // ── Component ID helpers ─────────────────────────────────────────────────────
 
@@ -98,7 +98,7 @@ const STATUS_BADGE: Record<string, string> = {
   ready:      'bg-green-100 text-green-700',
 }
 
-export default function HardeningProfileManagerPage() {
+export default function HardeningBlueprintManagerPage() {
   const qc = useQueryClient()
   const navigate = useNavigate()
   const { selectedWorkspace } = useWorkspace()
@@ -123,9 +123,9 @@ export default function HardeningProfileManagerPage() {
     enabled: !!workspaceId,
   })
 
-  const { data: profiles = [], isLoading: profilesLoading } = useQuery({
-    queryKey: ['profiles', workspaceId],
-    queryFn: () => listAllProfiles(workspaceId),
+  const { data: blueprints = [], isLoading: blueprintsLoading } = useQuery({
+    queryKey: ['blueprints', workspaceId],
+    queryFn: () => listAllBlueprints(workspaceId),
     enabled: !!workspaceId,
   })
 
@@ -134,25 +134,25 @@ export default function HardeningProfileManagerPage() {
 
   // ── Mutations ────────────────────────────────────────────────────────────
   const createMut = useMutation({
-    mutationFn: () => createProfile(newName.trim(), solutionTypeId, componentPolicyMap),
-    onSuccess: (profile) => {
-      qc.invalidateQueries({ queryKey: ['profiles', workspaceId] })
+    mutationFn: () => createBlueprint(newName.trim(), solutionTypeId, componentPolicyMap),
+    onSuccess: (blueprint) => {
+      qc.invalidateQueries({ queryKey: ['blueprints', workspaceId] })
       setNewName('')
       setComponentPolicyMap({})
       setShowCreateForm(false)
-      // Auto-trigger profile-level code generation
-      triggerCodeGen(profile.id).catch(() => {/* silent */})
+      // Auto-trigger blueprint-level code generation
+      triggerCodeGen(blueprint.id).catch(() => {/* silent */})
     },
   })
 
   const deleteMut = useMutation({
-    mutationFn: (id: string) => deleteProfile(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['profiles', workspaceId] }),
+    mutationFn: (id: string) => deleteBlueprint(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['blueprints', workspaceId] }),
   })
 
   const codegenMut = useMutation({
-    mutationFn: (profileId: string) => triggerCodeGen(profileId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['profiles', workspaceId] }),
+    mutationFn: (blueprintId: string) => triggerCodeGen(blueprintId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['blueprints', workspaceId] }),
   })
 
   const canCreate = !!solutionTypeId && newName.trim().length > 0 &&
@@ -205,27 +205,27 @@ export default function HardeningProfileManagerPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-bold text-aegis-dark">Hardening Profiles</h2>
+        <h2 className="text-xl font-bold text-aegis-dark">Hardening Blueprints</h2>
         {workspaceId && (
           <button
             onClick={() => showCreateForm ? handleCancel() : setShowCreateForm(true)}
             className="bg-aegis-dark text-white rounded px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity flex items-center gap-2"
           >
-            {showCreateForm ? '✕ Cancel' : '+ Create New Profile'}
+            {showCreateForm ? '✕ Cancel' : '+ Create New Blueprint'}
           </button>
         )}
       </div>
 
       {!workspaceId && (
         <div className="bg-amber-50 border border-amber-200 text-amber-700 text-sm rounded px-4 py-3 mb-6">
-          Select a workspace from the header to manage hardening profiles.
+          Select a workspace from the header to manage hardening blueprints.
         </div>
       )}
 
-      {/* ── Create Profile Panel ─────────────────────────────────────────── */}
+      {/* ── Create Blueprint Panel ───────────────────────────────────────── */}
       {workspaceId && showCreateForm && (
         <div className="bg-white rounded-lg shadow p-5 mb-8 border border-aegis-dark/20">
-          <h3 className="font-semibold text-aegis-dark mb-4">Create New Hardening Profile</h3>
+          <h3 className="font-semibold text-aegis-dark mb-4">Create New Hardening Blueprint</h3>
 
           {/* Solution Type selector */}
           <div className="mb-4">
@@ -254,15 +254,15 @@ export default function HardeningProfileManagerPage() {
                 <button className="underline font-medium" onClick={() => navigate('/solution-types')}>
                   Solution Types
                 </button>{' '}
-                to add components before creating a profile.
+                to add components before creating a blueprint.
               </p>
             </div>
           )}
 
-          {/* Profile name */}
+          {/* Blueprint name */}
           {solutionTypeId && (
             <div className="mb-4">
-              <label className="block text-xs font-medium text-gray-500 mb-1">Profile Name</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Blueprint Name</label>
               <input
                 placeholder="e.g. PCAI CIS Baseline"
                 value={newName}
@@ -322,7 +322,7 @@ export default function HardeningProfileManagerPage() {
               </div>
               {(selectedST!.component_selection as string[]).some((c: string) => !componentPolicyMap[c]) && (
                 <p className="text-xs text-amber-500 mt-1">
-                  All components must have a policy assigned before creating the profile.
+                  All components must have a policy assigned before creating the blueprint.
                 </p>
               )}
             </div>
@@ -335,41 +335,41 @@ export default function HardeningProfileManagerPage() {
                 disabled={!canCreate || createMut.isPending}
                 className="bg-aegis-dark text-white rounded px-5 py-2 text-sm disabled:opacity-50 hover:opacity-90 transition-opacity"
               >
-                {createMut.isPending ? 'Creating…' : 'Create Hardening Profile'}
+                {createMut.isPending ? 'Creating…' : 'Create Hardening Blueprint'}
               </button>
               {createMut.isSuccess && (
                 <p className="text-xs text-green-600 mt-2">
-                  Profile created. Code generation triggered — monitor progress in the editor.
+                  Blueprint created. Code generation triggered — monitor progress in the editor.
                 </p>
               )}
               {createMut.isError && (
-                <p className="text-xs text-red-600 mt-2">Failed to create profile. Please try again.</p>
+                <p className="text-xs text-red-600 mt-2">Failed to create blueprint. Please try again.</p>
               )}
             </>
           )}
         </div>
       )}
 
-      {/* ── Existing Profiles Tiles ──────────────────────────────────────── */}
+      {/* ── Existing Blueprints Tiles ────────────────────────────────────── */}
       {workspaceId && (
         <>
-          {profilesLoading && (
-            <p className="text-sm text-gray-400">Loading profiles…</p>
+          {blueprintsLoading && (
+            <p className="text-sm text-gray-400">Loading blueprints…</p>
           )}
 
-          {!profilesLoading && (() => {
-            const visibleProfiles = solutionTypeId
-              ? profiles.filter((p: HardeningProfile) => p.solution_type_id === solutionTypeId)
-              : profiles
+          {!blueprintsLoading && (() => {
+            const visibleBlueprints = solutionTypeId
+              ? blueprints.filter((p: HardeningBlueprint) => p.solution_type_id === solutionTypeId)
+              : blueprints
             const sectionLabel = solutionTypeId && selectedST
-              ? `Profiles for "${selectedST.name}"`
-              : 'All Hardening Profiles'
+              ? `Blueprints for "${selectedST.name}"`
+              : 'All Hardening Blueprints'
 
-            if (visibleProfiles.length === 0) {
+            if (visibleBlueprints.length === 0) {
               return (
                 <div className="bg-white rounded-lg shadow p-10 text-center">
                   <p className="text-gray-400 text-sm mb-1">
-                    {solutionTypeId ? `No profiles yet for "${selectedST?.name}".` : 'No hardening profiles yet.'}
+                    {solutionTypeId ? `No blueprints yet for "${selectedST?.name}".` : 'No hardening blueprints yet.'}
                   </p>
                   <p className="text-xs text-gray-300 mb-4">
                     Create one using the button above — AEGIS will generate evaluation,
@@ -379,7 +379,7 @@ export default function HardeningProfileManagerPage() {
                     onClick={() => setShowCreateForm(true)}
                     className="bg-aegis-dark text-white rounded px-4 py-2 text-sm hover:opacity-90 transition-opacity"
                   >
-                    + Create New Profile
+                    + Create New Blueprint
                   </button>
                 </div>
               )
@@ -389,24 +389,24 @@ export default function HardeningProfileManagerPage() {
               <>
                 <h3 className="font-semibold text-aegis-dark mb-3 text-sm">{sectionLabel}</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                  {visibleProfiles.map((profile: HardeningProfile) => {
-                const cpm = profile.component_policy_map ?? {}
-                // find the solution type name for this profile
-                const profileST = solutionTypes.find((s: SolutionType) => s.id === profile.solution_type_id)
+                  {visibleBlueprints.map((blueprint: HardeningBlueprint) => {
+                const cpm = blueprint.component_policy_map ?? {}
+                // find the solution type name for this blueprint
+                const blueprintST = solutionTypes.find((s: SolutionType) => s.id === blueprint.solution_type_id)
                 return (
-                  <div key={profile.id} className="bg-white rounded-lg shadow p-4 flex flex-col gap-2 hover:shadow-md transition-shadow">
+                  <div key={blueprint.id} className="bg-white rounded-lg shadow p-4 flex flex-col gap-2 hover:shadow-md transition-shadow">
                     <div className="flex items-start justify-between">
-                      <div className="font-semibold text-aegis-dark">{profile.name}</div>
+                      <div className="font-semibold text-aegis-dark">{blueprint.name}</div>
                       <span
-                        className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${STATUS_BADGE[profile.status] ?? 'bg-gray-100 text-gray-600'}`}
+                        className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${STATUS_BADGE[blueprint.status] ?? 'bg-gray-100 text-gray-600'}`}
                       >
-                        {profile.status}
+                        {blueprint.status}
                       </span>
                     </div>
 
-                    {profileST && (
+                    {blueprintST && (
                       <div className="text-xs text-gray-400">
-                        <span className="font-medium text-gray-600">Solution Type:</span> {profileST.name}
+                        <span className="font-medium text-gray-600">Solution Type:</span> {blueprintST.name}
                       </div>
                     )}
 
@@ -431,13 +431,13 @@ export default function HardeningProfileManagerPage() {
 
                     <div className="flex gap-2 mt-auto pt-2">
                       <button
-                        onClick={() => navigate(`/profiles/${profile.id}`)}
+                        onClick={() => navigate(`/blueprints/${blueprint.id}`)}
                         className="flex-1 text-sm bg-aegis-dark text-white rounded px-3 py-1.5 hover:opacity-90 transition-opacity"
                       >
                         Edit / Review Codes
                       </button>
                       <button
-                        onClick={() => codegenMut.mutate(profile.id)}
+                        onClick={() => codegenMut.mutate(blueprint.id)}
                         disabled={codegenMut.isPending}
                         title="Re-trigger LLM code generation for pending rules"
                         className="text-sm bg-blue-600 text-white rounded px-3 py-1.5 hover:bg-blue-700 disabled:opacity-50"
@@ -446,8 +446,8 @@ export default function HardeningProfileManagerPage() {
                       </button>
                       <button
                         onClick={() => {
-                          if (window.confirm(`Delete profile "${profile.name}"?`)) {
-                            deleteMut.mutate(profile.id)
+                          if (window.confirm(`Delete blueprint "${blueprint.name}"?`)) {
+                            deleteMut.mutate(blueprint.id)
                           }
                         }}
                         className="text-sm bg-red-600 text-white rounded px-3 py-1.5 hover:bg-red-700"

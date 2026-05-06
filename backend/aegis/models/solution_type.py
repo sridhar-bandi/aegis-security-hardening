@@ -24,10 +24,10 @@ class SolutionType(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     workspace: Mapped["Workspace"] = relationship("Workspace", back_populates="solution_types")
-    hardening_profiles: Mapped[list["HardeningProfile"]] = relationship("HardeningProfile", back_populates="solution_type")
+    hardening_blueprints: Mapped[list["HardeningBlueprint"]] = relationship("HardeningBlueprint", back_populates="solution_type")
     solution_instances: Mapped[list["SolutionInstance"]] = relationship("SolutionInstance", back_populates="solution_type")
 
 
 from aegis.models.workspace import Workspace  # noqa: F401, E402
-from aegis.models.hardening_profile import HardeningProfile  # noqa: F401, E402
+from aegis.models.hardening_blueprint import HardeningBlueprint  # noqa: F401, E402
 from aegis.models.solution_instance import SolutionInstance  # noqa: F401, E402

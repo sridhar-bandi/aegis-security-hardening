@@ -73,8 +73,8 @@ class PolicyRule(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     policy: Mapped["Policy"] = relationship("Policy", back_populates="rules")
-    profile_rules: Mapped[list["ProfileRule"]] = relationship("ProfileRule", back_populates="policy_rule", passive_deletes=True)
+    blueprint_rules: Mapped[list["BlueprintRule"]] = relationship("BlueprintRule", back_populates="policy_rule", passive_deletes=True)
 
 
 from aegis.models.workspace import Workspace  # noqa: F401, E402
-from aegis.models.hardening_profile import ProfileRule  # noqa: F401, E402
+from aegis.models.hardening_blueprint import BlueprintRule  # noqa: F401, E402

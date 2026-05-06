@@ -1,4 +1,4 @@
-"""HardeningProfile, ProfileRule, and HITLComment ORM models."""
+"""HardeningBlueprint, BlueprintRule, and HITLComment ORM models."""
 from __future__ import annotations
 
 import uuid
@@ -11,8 +11,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from aegis.database import Base
 
 
-class HardeningProfile(Base):
-    __tablename__ = "hardening_profiles"
+class HardeningBlueprint(Base):
+    __tablename__ = "hardening_blueprints"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(300), nullable=False)
@@ -20,23 +20,23 @@ class HardeningProfile(Base):
     policy_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("policies.id", ondelete="SET NULL"), nullable=True)
     component_policy_map: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     status: Mapped[str] = mapped_column(
-        Enum("draft", "generating", "ready", name="profile_status"),
+        Enum("draft", "generating", "ready", name="blueprint_status"),
         nullable=False,
         default="draft",
     )
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    solution_type: Mapped["SolutionType"] = relationship("SolutionType", back_populates="hardening_profiles")
+    solution_type: Mapped["SolutionType"] = relationship("SolutionType", back_populates="hardening_blueprints")
     policy: Mapped["Policy"] = relationship("Policy")
-    profile_rules: Mapped[list["ProfileRule"]] = relationship("ProfileRule", back_populates="profile", cascade="all, delete-orphan")
+    blueprint_rules: Mapped[list["BlueprintRule"]] = relationship("BlueprintRule", back_populates="blueprint", cascade="all, delete-orphan")
 
 
-class ProfileRule(Base):
-    __tablename__ = "profile_rules"
+class BlueprintRule(Base):
+    __tablename__ = "blueprint_rules"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    profile_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("hardening_profiles.id", ondelete="CASCADE"), nullable=False, index=True)
+    blueprint_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("hardening_blueprints.id", ondelete="CASCADE"), nullable=False, index=True)
     policy_rule_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("policy_rules.id", ondelete="CASCADE"), nullable=False)
     component_type: Mapped[str] = mapped_column(String(100), nullable=False)
     evaluation_code: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -52,16 +52,16 @@ class ProfileRule(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
-    profile: Mapped["HardeningProfile"] = relationship("HardeningProfile", back_populates="profile_rules")
-    policy_rule: Mapped["PolicyRule"] = relationship("PolicyRule", back_populates="profile_rules")
-    hitl_comments: Mapped[list["HITLComment"]] = relationship("HITLComment", back_populates="profile_rule", cascade="all, delete-orphan")
+    blueprint: Mapped["HardeningBlueprint"] = relationship("HardeningBlueprint", back_populates="blueprint_rules")
+    policy_rule: Mapped["PolicyRule"] = relationship("PolicyRule", back_populates="blueprint_rules")
+    hitl_comments: Mapped[list["HITLComment"]] = relationship("HITLComment", back_populates="blueprint_rule", cascade="all, delete-orphan")
 
 
 class HITLComment(Base):
     __tablename__ = "hitl_comments"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    profile_rule_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("profile_rules.id", ondelete="CASCADE"), nullable=False, index=True)
+    blueprint_rule_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("blueprint_rules.id", ondelete="CASCADE"), nullable=False, index=True)
     author_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     comment_text: Mapped[str] = mapped_column(Text, nullable=False)
     comment_type: Mapped[str] = mapped_column(
@@ -71,7 +71,7 @@ class HITLComment(Base):
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    profile_rule: Mapped["ProfileRule"] = relationship("ProfileRule", back_populates="hitl_comments")
+    blueprint_rule: Mapped["BlueprintRule"] = relationship("BlueprintRule", back_populates="hitl_comments")
 
 
 from aegis.models.solution_type import SolutionType  # noqa: F401, E402

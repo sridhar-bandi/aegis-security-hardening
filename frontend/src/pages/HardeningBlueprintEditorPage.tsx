@@ -2,8 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import MonacoEditor from '@monaco-editor/react'
-import { getProfile, listProfileRules, updateRuleCode, approveRule, rejectRule, triggerCodeGen, deleteProfile } from '../api/endpoints'
-import type { ProfileRule } from '../types'
+import { getBlueprint, listBlueprintRules, updateRuleCode, approveRule, rejectRule, triggerCodeGen, deleteBlueprint } from '../api/endpoints'
+import type { BlueprintRule } from '../types'
 
 const STATUS_COLOR: Record<string, string> = {
   pending: '#7f8c8d',
@@ -28,7 +28,7 @@ const CODE_TABS: { key: CodeTab; label: string }[] = [
   { key: 'rollback_code', label: 'Rollback' },
 ]
 
-// ── Component label helpers (mirrors HardeningProfileManagerPage) ────────────
+// ── Component label helpers (mirrors HardeningBlueprintManagerPage) ────────────────
 const ID_PREFIX_MAP: { prefix: string; category: string; suffix: string }[] = [
   { prefix: 'server-', category: 'Server',          suffix: '— Host OS' },
   { prefix: 'ilo-',    category: 'iLO',             suffix: '— iLO'     },
@@ -73,24 +73,24 @@ const CATEGORY_BADGE: Record<string, string> = {
   'Virtual Machine': 'bg-indigo-100 text-indigo-800',
 }
 
-export default function HardeningProfileEditorPage() {
-  const { profileId } = useParams<{ profileId: string }>()
+export default function HardeningBlueprintEditorPage() {
+  const { blueprintId } = useParams<{ blueprintId: string }>()
   const navigate = useNavigate()
   const qc = useQueryClient()
 
-  const { data: profile } = useQuery({
-    queryKey: ['profile', profileId],
-    queryFn: () => getProfile(profileId!),
-    enabled: !!profileId,
+  const { data: blueprint } = useQuery({
+    queryKey: ['blueprint', blueprintId],
+    queryFn: () => getBlueprint(blueprintId!),
+    enabled: !!blueprintId,
   })
 
   const { data: rules = [] } = useQuery({
-    queryKey: ['profile-rules', profileId],
-    queryFn: () => listProfileRules(profileId!),
-    enabled: !!profileId,
+    queryKey: ['blueprint-rules', blueprintId],
+    queryFn: () => listBlueprintRules(blueprintId!),
+    enabled: !!blueprintId,
   })
 
-  const [selectedRule, setSelectedRule] = useState<ProfileRule | null>(null)
+  const [selectedRule, setSelectedRule] = useState<BlueprintRule | null>(null)
   const [activeTab, setActiveTab] = useState<CodeTab>('evaluation_code')
   const [editedCode, setEditedCode] = useState('')
   const [expandedComponents, setExpandedComponents] = useState<Set<string>>(new Set())
@@ -101,7 +101,7 @@ export default function HardeningProfileEditorPage() {
   // Group rules by component_type, preserving backend order
   const componentGroups = (() => {
     const order: string[] = []
-    const map = new Map<string, ProfileRule[]>()
+    const map = new Map<string, BlueprintRule[]>()
     for (const r of rules) {
       if (!map.has(r.component_type)) { map.set(r.component_type, []); order.push(r.component_type) }
       map.get(r.component_type)!.push(r)
@@ -130,27 +130,27 @@ export default function HardeningProfileEditorPage() {
   }, [selectedRule, activeTab])
 
   const saveMut = useMutation({
-    mutationFn: () => updateRuleCode(profileId!, selectedRule!.id, { [activeTab]: editedCode }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['profile-rules', profileId] }),
+    mutationFn: () => updateRuleCode(blueprintId!, selectedRule!.id, { [activeTab]: editedCode }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['blueprint-rules', blueprintId] }),
   })
 
   const approveMut = useMutation({
-    mutationFn: () => approveRule(profileId!, selectedRule!.id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['profile-rules', profileId] }),
+    mutationFn: () => approveRule(blueprintId!, selectedRule!.id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['blueprint-rules', blueprintId] }),
   })
 
   const rejectMut = useMutation({
-    mutationFn: () => rejectRule(profileId!, selectedRule!.id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['profile-rules', profileId] }),
+    mutationFn: () => rejectRule(blueprintId!, selectedRule!.id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['blueprint-rules', blueprintId] }),
   })
 
   const triggerGenMut = useMutation({
-    mutationFn: () => triggerCodeGen(profileId!),
+    mutationFn: () => triggerCodeGen(blueprintId!),
     onSuccess: () => {
       setStreaming(true)
       setStreamLog([])
       const token = localStorage.getItem('aegis_token') ?? ''
-      const ws = new WebSocket(`ws://${location.host}/api/v1/ws/codegen/${profileId}?token=${token}`)
+      const ws = new WebSocket(`ws://${location.host}/api/v1/ws/codegen/${blueprintId}?token=${token}`)
       wsRef.current = ws
       ws.onmessage = (evt) => {
         const msg = JSON.parse(evt.data)
@@ -158,7 +158,7 @@ export default function HardeningProfileEditorPage() {
         if (msg.type === 'completed' || msg.type === 'failed') {
           setStreaming(false)
           ws.close()
-          qc.invalidateQueries({ queryKey: ['profile-rules', profileId] })
+          qc.invalidateQueries({ queryKey: ['blueprint-rules', blueprintId] })
         }
       }
       ws.onerror = () => setStreaming(false)
@@ -166,7 +166,7 @@ export default function HardeningProfileEditorPage() {
   })
 
   const deleteMut = useMutation({
-    mutationFn: () => deleteProfile(profileId!),
+    mutationFn: () => deleteBlueprint(blueprintId!),
     onSuccess: () => navigate(-1),
   })
 
@@ -184,7 +184,7 @@ export default function HardeningProfileEditorPage() {
       <div className="w-72 flex-shrink-0 flex flex-col overflow-y-auto">
         {/* Header row */}
         <div className="flex items-center gap-2 mb-3 flex-wrap">
-          <h2 className="font-bold text-aegis-dark flex-1 truncate text-sm">{profile?.name ?? 'Profile'}</h2>
+          <h2 className="font-bold text-aegis-dark flex-1 truncate text-sm">{blueprint?.name ?? 'Blueprint'}</h2>
           <button
             onClick={() => triggerGenMut.mutate()}
             disabled={streaming}
@@ -194,7 +194,7 @@ export default function HardeningProfileEditorPage() {
           </button>
           <button
             onClick={() => {
-              if (window.confirm(`Delete profile "${profile?.name}"? This cannot be undone.`)) {
+              if (window.confirm(`Delete blueprint "${blueprint?.name}"? This cannot be undone.`)) {
                 deleteMut.mutate()
               }
             }}

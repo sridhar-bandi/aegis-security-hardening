@@ -59,7 +59,7 @@ export interface SolutionType {
   created_at: string
 }
 
-export interface HardeningProfile {
+export interface HardeningBlueprint {
   id: string
   name: string
   solution_type_id: string
@@ -69,9 +69,9 @@ export interface HardeningProfile {
   created_at: string
 }
 
-export interface ProfileRule {
+export interface BlueprintRule {
   id: string
-  profile_id: string
+  blueprint_id: string
   policy_rule_id: string
   component_type: string
   evaluation_code: string | null
@@ -87,7 +87,7 @@ export interface ProfileRule {
 
 export interface HITLComment {
   id: string
-  profile_rule_id: string
+  blueprint_rule_id: string
   author_id: string | null
   comment_text: string
   comment_type: 'review' | 'approval' | 'rejection'
@@ -99,9 +99,11 @@ export interface SolutionInstance {
   workspace_id: string
   name: string
   solution_type_id: string | null
-  profile_id: string | null
+  blueprint_id: string | null
   owner_id: string
   created_at: string
+  scid_json: Record<string, unknown> | null
+  scid_filename: string | null
 }
 
 export interface EnforcementJob {

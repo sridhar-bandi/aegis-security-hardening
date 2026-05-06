@@ -1,4 +1,4 @@
-"""Evaluator: runs evaluation_code for each ProfileRule against a real endpoint."""
+"""Evaluator: runs evaluation_code for each BlueprintRule against a real endpoint."""
 from __future__ import annotations
 
 import logging
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class EvalRuleResult:
-    profile_rule_id: str
+    blueprint_rule_id: str
     rule_id: str
     title: str
     component_type: str
@@ -45,11 +45,11 @@ class Evaluator:
         instance_id: str,
         component_type: str,
         endpoint_config: dict,
-        profile_rules: list[dict],
+        blueprint_rules: list[dict],
         vault_connector: VaultConnector | None = None,
     ) -> EvalReport:
         """
-        Run evaluation_code for each profile_rule against the endpoint.
+        Run evaluation_code for each blueprint_rule against the endpoint.
         endpoint_config may contain vault:// references resolved if vault_connector is provided.
         """
         resolved_config = self._resolve_config(endpoint_config, vault_connector)
@@ -60,7 +60,7 @@ class Evaluator:
         )
 
         with create_connector(component_type, resolved_config) as connector:
-            for rule in profile_rules:
+            for rule in blueprint_rules:
                 result = self._eval_rule(connector, rule)
                 report.results.append(result)
 
@@ -84,11 +84,11 @@ class Evaluator:
             "ConnectorResult": ConnectorResult,
         }
         try:
-            exec(compile(code, f"eval_{rule['profile_rule_id']}", "exec"), namespace)  # noqa: S102
+            exec(compile(code, f"eval_{rule['blueprint_rule_id']}", "exec"), namespace)  # noqa: S102
         except Exception as exc:
             logger.exception("Evaluation code exec failed for rule %s: %s", rule.get("rule_id"), exc)
             return EvalRuleResult(
-                profile_rule_id=rule["profile_rule_id"],
+                blueprint_rule_id=rule["blueprint_rule_id"],
                 rule_id=rule.get("rule_id", ""),
                 title=rule.get("title", ""),
                 component_type=rule.get("component_type", ""),
@@ -99,7 +99,7 @@ class Evaluator:
 
         r = namespace.get("result", {})
         return EvalRuleResult(
-            profile_rule_id=rule["profile_rule_id"],
+            blueprint_rule_id=rule["blueprint_rule_id"],
             rule_id=rule.get("rule_id", ""),
             title=rule.get("title", ""),
             component_type=rule.get("component_type", ""),

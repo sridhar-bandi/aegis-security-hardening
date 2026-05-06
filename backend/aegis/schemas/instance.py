@@ -10,7 +10,9 @@ class SolutionInstanceCreate(BaseModel):
     workspace_id: uuid.UUID
     name: str
     solution_type_id: uuid.UUID | None = None
-    profile_id: uuid.UUID | None = None
+    blueprint_id: uuid.UUID | None = None
+    scid_json: dict[str, Any] | None = None
+    scid_filename: str | None = None
 
 
 class SolutionInstanceResponse(BaseModel):
@@ -20,14 +22,16 @@ class SolutionInstanceResponse(BaseModel):
     workspace_id: uuid.UUID
     name: str
     solution_type_id: uuid.UUID | None
-    profile_id: uuid.UUID | None
+    blueprint_id: uuid.UUID | None
     owner_id: uuid.UUID
     created_at: datetime
+    scid_json: dict[str, Any] | None = None
+    scid_filename: str | None = None
 
 
 class EnforcementRequest(BaseModel):
     rule_ids: list[uuid.UUID] | None = None  # None = all approved rules
-    profile_id: uuid.UUID | None = None  # override if not set on instance
+    blueprint_id: uuid.UUID | None = None  # override if not set on instance
 
 
 class EnforcementJobResponse(BaseModel):
@@ -73,7 +77,7 @@ class ImpactAssessmentReport(BaseModel):
 
 class DryRunRuleResult(BaseModel):
     rule_id: str
-    profile_rule_id: str
+    blueprint_rule_id: str
     title: str
     risk_score: float
     impacted_channels: list[ChannelRisk]

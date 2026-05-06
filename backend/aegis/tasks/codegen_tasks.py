@@ -196,30 +196,30 @@ async def _generate_policy_codes_async(
 
 
 # ---------------------------------------------------------------------------
-# Profile-level code generation (per component × policy rule)
+# Blueprint-level code generation (per component × policy rule)
 # ---------------------------------------------------------------------------
 
 
-@celery_app.task(bind=True, base=_BaseTask, name="codegen.generate_profile_codes", max_retries=2)
-def generate_profile_codes(self: _BaseTask, profile_id: str, rule_ids: list[str] | None = None) -> dict:
+@celery_app.task(bind=True, base=_BaseTask, name="codegen.generate_blueprint_codes", max_retries=2)
+def generate_blueprint_codes(self: _BaseTask, blueprint_id: str, rule_ids: list[str] | None = None) -> dict:
     """
-    Generate evaluate/remediate/rollback code for all pending ProfileRules in a
-    HardeningProfile. Falls back to policy-level baseline code from Milvus as
+    Generate evaluate/remediate/rollback code for all pending BlueprintRules in a
+    HardeningBlueprint. Falls back to policy-level baseline code from Milvus as
     few-shot context. Publishes progress to Redis pub/sub channel
-    ``ws:codegen:{profile_id}``.
+    ``ws:codegen:{blueprint_id}``.
     """
-    return self.run_async(_generate_profile_codes_async(profile_id, rule_ids, self))
+    return self.run_async(_generate_blueprint_codes_async(blueprint_id, rule_ids, self))
 
 
-async def _generate_profile_codes_async(
-    profile_id: str,
+async def _generate_blueprint_codes_async(
+    blueprint_id: str,
     rule_ids: list[str] | None,
     task: _BaseTask,
 ) -> dict:
     from sqlalchemy import select, update
     from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
-    from aegis.models.hardening_profile import HardeningProfile, ProfileRule
+    from aegis.models.hardening_blueprint import HardeningBlueprint, BlueprintRule
     from aegis.models.policy import PolicyRule
     from aegis.services.llm.code_generator import CodeGenerator
     from aegis.services.llm.milvus_store import MilvusRuleStore
@@ -228,7 +228,7 @@ async def _generate_profile_codes_async(
     SessionFactory = async_sessionmaker(engine, expire_on_commit=False)
 
     redis_client = Redis.from_url(settings.REDIS_URL)
-    channel = f"ws:codegen:{profile_id}"
+    channel = f"ws:codegen:{blueprint_id}"
     generator = CodeGenerator()
     store = MilvusRuleStore()
 
@@ -236,15 +236,15 @@ async def _generate_profile_codes_async(
 
     async with SessionFactory() as db:
         query = (
-            select(ProfileRule)
-            .where(ProfileRule.profile_id == uuid.UUID(profile_id))
-            .where(ProfileRule.code_status == "pending")
+            select(BlueprintRule)
+            .where(BlueprintRule.blueprint_id == uuid.UUID(blueprint_id))
+            .where(BlueprintRule.code_status == "pending")
         )
         if rule_ids:
-            query = query.where(ProfileRule.id.in_([uuid.UUID(r) for r in rule_ids]))
+            query = query.where(BlueprintRule.id.in_([uuid.UUID(r) for r in rule_ids]))
 
         result = await db.execute(query)
-        pending_rules: list[ProfileRule] = list(result.scalars().all())
+        pending_rules: list[BlueprintRule] = list(result.scalars().all())
 
         total = len(pending_rules)
         _publish(redis_client, channel, {"type": "started", "total": total})
@@ -277,8 +277,8 @@ async def _generate_profile_codes_async(
                 )
 
                 await db.execute(
-                    update(ProfileRule)
-                    .where(ProfileRule.id == pr.id)
+                    update(BlueprintRule)
+                    .where(BlueprintRule.id == pr.id)
                     .values(
                         evaluation_code=codes["evaluation_code"],
                         remediation_code=codes["remediation_code"],
@@ -293,7 +293,7 @@ async def _generate_profile_codes_async(
                     "title": policy_rule.title,
                     "severity": policy_rule.severity,
                     "component_type": pr.component_type,
-                    "profile_id": profile_id,
+                    "blueprint_id": blueprint_id,
                     "eval_code": codes["evaluation_code"][:1500],
                     "rem_code": codes["remediation_code"][:1500],
                     "rollback_code": codes["rollback_code"][:1000],
@@ -307,7 +307,7 @@ async def _generate_profile_codes_async(
                     )
                 except Exception as milvus_exc:
                     logger.warning(
-                        "Milvus upsert failed for profile_rule %s: %s", pr.id, milvus_exc
+                        "Milvus upsert failed for blueprint_rule %s: %s", pr.id, milvus_exc
                     )
 
                 _publish(redis_client, channel, {
@@ -319,10 +319,10 @@ async def _generate_profile_codes_async(
                 results["generated"] += 1
 
             except Exception as exc:
-                logger.exception("Code generation failed for profile_rule %s: %s", pr.id, exc)
+                logger.exception("Code generation failed for blueprint_rule %s: %s", pr.id, exc)
                 await db.execute(
-                    update(ProfileRule)
-                    .where(ProfileRule.id == pr.id)
+                    update(BlueprintRule)
+                    .where(BlueprintRule.id == pr.id)
                     .values(code_status="pending")
                 )
                 await db.commit()

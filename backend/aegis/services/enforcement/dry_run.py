@@ -29,14 +29,14 @@ class DryRunEngine:
     def __init__(self, assessor: ImpactAssessor) -> None:
         self._assessor = assessor
 
-    def run(self, instance_id: str, profile_rules: list[dict]) -> DryRunReport:
+    def run(self, instance_id: str, blueprint_rules: list[dict]) -> DryRunReport:
         impact = self._assessor.assess(instance_id)
 
         safe: list[DryRunRuleResult] = []
         risky: list[DryRunRuleResult] = []
         breaking: list[DryRunRuleResult] = []
 
-        for rule in profile_rules:
+        for rule in blueprint_rules:
             component_type = rule.get("component_type", "")
             affected_paths = self._assessor.find_affected_paths(component_type)
             affected_channel_ids = {
@@ -63,7 +63,7 @@ class DryRunEngine:
 
             dr_result = DryRunRuleResult(
                 rule_id=rule.get("rule_id", ""),
-                profile_rule_id=rule.get("profile_rule_id", ""),
+                blueprint_rule_id=rule.get("blueprint_rule_id", ""),
                 title=rule.get("title", ""),
                 risk_score=composite_risk,
                 impacted_channels=impacted_channels,

@@ -28,21 +28,21 @@ async def _authenticate_ws(websocket: WebSocket, token: str) -> bool:
             return False
 
 
-@router.websocket("/codegen/{profile_id}")
+@router.websocket("/codegen/{blueprint_id}")
 async def codegen_stream(
     websocket: WebSocket,
-    profile_id: str,
+    blueprint_id: str,
     token: str = Query(...),
 ) -> None:
     """
-    Subscribe to code generation progress events for a HardeningProfile.
+    Subscribe to code generation progress events for a HardeningBlueprint.
     Events are published by the Celery codegen_tasks worker to Redis pub/sub.
     """
     await websocket.accept()
     if not await _authenticate_ws(websocket, token):
         return
 
-    channel = f"ws:codegen:{profile_id}"
+    channel = f"ws:codegen:{blueprint_id}"
     redis_client = aioredis.from_url(settings.REDIS_URL)
     pubsub = redis_client.pubsub()
     await pubsub.subscribe(channel)
@@ -61,7 +61,7 @@ async def codegen_stream(
                 except WebSocketDisconnect:
                     break
                 except Exception as exc:
-                    logger.warning("WebSocket send error on codegen/%s: %s", profile_id, exc)
+                    logger.warning("WebSocket send error on codegen/%s: %s", blueprint_id, exc)
                     break
     finally:
         await pubsub.unsubscribe(channel)
