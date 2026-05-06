@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from aegis.database import get_db
 from aegis.models.hardening_blueprint import HardeningBlueprint, HITLComment, BlueprintRule
 from aegis.models.policy import PolicyRule
+from aegis.models.policy_profile import PolicyProfile
 from aegis.models.solution_type import SolutionType
 from aegis.models.user import User
 from aegis.schemas.blueprint import (
@@ -72,35 +73,57 @@ async def create_blueprint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SolutionType not found")
     await check_workspace_access(st.workspace_id, current_user, db)
 
-    # Validate that every component in the solution type has a policy assigned
+    # Validate that every component in the solution type has a profile assigned
     components = st.component_selection or []
-    missing = [c for c in components if c not in body.component_policy_map]
+    missing = [c for c in components if c not in body.component_profile_map]
     if missing:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"No policy mapped for component(s): {', '.join(missing)}",
+            detail=f"No profile mapped for component(s): {', '.join(missing)}",
+        )
+
+    # Validate all profiles are locked
+    profile_ids = list(body.component_profile_map.values())
+    profiles_result = await db.execute(
+        select(PolicyProfile).where(PolicyProfile.id.in_(profile_ids))
+    )
+    profiles = {p.id: p for p in profiles_result.scalars().all()}
+    not_locked = [str(pid) for pid in profile_ids if pid not in profiles or profiles[pid].status != "locked"]
+    if not_locked:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Profile(s) not found or not locked: {', '.join(not_locked)}",
         )
 
     # Serialize map: UUID values → str for JSON storage
-    cpm_serialized = {k: str(v) for k, v in body.component_policy_map.items()}
+    cpm_serialized = {k: str(v) for k, v in body.component_profile_map.items()}
 
     blueprint = HardeningBlueprint(
         id=uuid.uuid4(),
         name=body.name,
         solution_type_id=body.solution_type_id,
-        component_policy_map=cpm_serialized,
+        component_profile_map=cpm_serialized,
         created_by=current_user.id,
     )
     db.add(blueprint)
     await db.flush()
 
-    # Create BlueprintRules: for each component, use its mapped policy's rules
+    # Create BlueprintRules from each profile's PolicyRules
     if components:
         for component_id in components:
-            policy_id = body.component_policy_map[component_id]
-            rules_result = await db.execute(
-                select(PolicyRule).where(PolicyRule.policy_id == policy_id)
-            )
+            profile_id = body.component_profile_map[component_id]
+            profile = profiles[profile_id]
+
+            # Resolve rules: included_rule_ids for tailored, all policy rules for standard
+            if profile.included_rule_ids:
+                rule_ids = [uuid.UUID(rid) for rid in profile.included_rule_ids]
+                rules_result = await db.execute(
+                    select(PolicyRule).where(PolicyRule.id.in_(rule_ids))
+                )
+            else:
+                rules_result = await db.execute(
+                    select(PolicyRule).where(PolicyRule.policy_id == profile.policy_id)
+                )
             policy_rules = rules_result.scalars().all()
             for pr in policy_rules:
                 db.add(BlueprintRule(
@@ -108,7 +131,10 @@ async def create_blueprint(
                     blueprint_id=blueprint.id,
                     policy_rule_id=pr.id,
                     component_type=component_id,
-                    code_status="pending",
+                    evaluation_code=pr.evaluation_code,
+                    remediation_code=pr.remediation_code,
+                    rollback_code=pr.rollback_code,
+                    code_status="approved",
                     risk_score=5.0,
                 ))
 

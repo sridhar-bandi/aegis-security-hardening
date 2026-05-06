@@ -36,7 +36,7 @@ app.add_middleware(
 )
 
 # --- Register API routers ---
-from aegis.api.v1 import auth, users, workspaces, policies, solution_types, blueprints, instances  # noqa: E402
+from aegis.api.v1 import auth, users, workspaces, policies, solution_types, blueprints, instances, profiles  # noqa: E402
 from aegis.api.v1 import websockets as ws_router  # noqa: E402
 
 app.include_router(auth.router, prefix="/api/v1")
@@ -46,6 +46,7 @@ app.include_router(policies.router, prefix="/api/v1")
 app.include_router(solution_types.router, prefix="/api/v1")
 app.include_router(blueprints.router, prefix="/api/v1")
 app.include_router(instances.router, prefix="/api/v1")
+app.include_router(profiles.router, prefix="/api/v1")
 app.include_router(ws_router.router)
 
 

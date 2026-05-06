@@ -7,6 +7,7 @@ import PolicyManagerPage from './pages/PolicyManagerPage'
 import SolutionTypeBuilderPage from './pages/SolutionTypeBuilderPage'
 import HardeningBlueprintManagerPage from './pages/HardeningBlueprintManagerPage'
 import HardeningBlueprintEditorPage from './pages/HardeningBlueprintEditorPage'
+import PolicyImplementationEditorPage from './pages/PolicyImplementationEditorPage'
 import InstanceManagerPage from './pages/InstanceManagerPage'
 import EnforcementConsolePage from './pages/EnforcementConsolePage'
 import UserManagementPage from './pages/UserManagementPage'
@@ -37,6 +38,7 @@ export default function App() {
           >
             <Route index element={<DashboardPage />} />
             <Route path="policies" element={<PolicyManagerPage />} />
+            <Route path="policies/:policyId/implementation" element={<PolicyImplementationEditorPage />} />
             <Route path="solution-types" element={<SolutionTypeBuilderPage />} />
             <Route path="blueprints" element={<HardeningBlueprintManagerPage />} />
             <Route path="blueprints/:blueprintId" element={<HardeningBlueprintEditorPage />} />

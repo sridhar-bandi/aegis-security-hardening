@@ -17,8 +17,7 @@ class HardeningBlueprint(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(300), nullable=False)
     solution_type_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("solution_types.id", ondelete="CASCADE"), nullable=False, index=True)
-    policy_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("policies.id", ondelete="SET NULL"), nullable=True)
-    component_policy_map: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    component_profile_map: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     status: Mapped[str] = mapped_column(
         Enum("draft", "generating", "ready", name="blueprint_status"),
         nullable=False,
@@ -28,7 +27,6 @@ class HardeningBlueprint(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     solution_type: Mapped["SolutionType"] = relationship("SolutionType", back_populates="hardening_blueprints")
-    policy: Mapped["Policy"] = relationship("Policy")
     blueprint_rules: Mapped[list["BlueprintRule"]] = relationship("BlueprintRule", back_populates="blueprint", cascade="all, delete-orphan")
 
 

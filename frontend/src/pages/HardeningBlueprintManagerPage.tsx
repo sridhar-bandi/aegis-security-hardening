@@ -4,13 +4,14 @@ import { useNavigate } from 'react-router-dom'
 import {
   listSolutionTypes,
   listPolicies,
+  listLockedProfiles,
   listAllBlueprints,
   createBlueprint,
   deleteBlueprint,
   triggerCodeGen,
 } from '../api/endpoints'
 import { useWorkspace } from '../context/WorkspaceContext'
-import type { HardeningBlueprint, Policy, SolutionType } from '../types'
+import type { HardeningBlueprint, Policy, PolicyProfile, SolutionType } from '../types'
 
 // ── Component ID helpers ─────────────────────────────────────────────────────
 
@@ -92,6 +93,27 @@ function findBestPolicy(compId: string, policies: Policy[]): string {
   return bestId
 }
 
+function findBestProfile(compId: string, profiles: PolicyProfile[], policies: Policy[]): string {
+  if (profiles.length === 0) return ''
+  const prefix = Object.keys(COMPONENT_POLICY_KEYWORDS).find((p) => compId.startsWith(p))
+  if (!prefix) return ''
+  const keywords = COMPONENT_POLICY_KEYWORDS[prefix]
+  const policyMap = Object.fromEntries(policies.map((p) => [p.id, p]))
+  let bestId = ''
+  let bestScore = 0
+  for (const profile of profiles) {
+    const pol = policyMap[profile.policy_id]
+    if (!pol) continue
+    const hay = `${profile.name} ${pol.name} ${pol.standard} ${pol.description ?? ''}`.toLowerCase()
+    const score = keywords.reduce((acc, kw) => acc + (hay.includes(kw) ? 1 : 0), 0)
+    if (score > bestScore) {
+      bestScore = score
+      bestId = profile.id
+    }
+  }
+  return bestId
+}
+
 const STATUS_BADGE: Record<string, string> = {
   draft:      'bg-gray-100 text-gray-600',
   generating: 'bg-yellow-100 text-yellow-700',
@@ -107,8 +129,8 @@ export default function HardeningBlueprintManagerPage() {
   const [showCreateForm, setShowCreateForm]   = useState(false)
   const [solutionTypeId, setSolutionTypeId]   = useState('')
   const [newName, setNewName]                 = useState('')
-  // Maps each component type → selected policy id
-  const [componentPolicyMap, setComponentPolicyMap] = useState<Record<string, string>>({})
+  // Maps each component type → selected profile id
+  const [componentProfileMap, setComponentProfileMap] = useState<Record<string, string>>({})
 
   // ── Data ────────────────────────────────────────────────────────────────
   const { data: solutionTypes = [] } = useQuery({
@@ -123,6 +145,12 @@ export default function HardeningBlueprintManagerPage() {
     enabled: !!workspaceId,
   })
 
+  const { data: lockedProfiles = [] } = useQuery({
+    queryKey: ['locked-profiles', workspaceId],
+    queryFn: () => listLockedProfiles(workspaceId),
+    enabled: !!workspaceId,
+  })
+
   const { data: blueprints = [], isLoading: blueprintsLoading } = useQuery({
     queryKey: ['blueprints', workspaceId],
     queryFn: () => listAllBlueprints(workspaceId),
@@ -130,15 +158,16 @@ export default function HardeningBlueprintManagerPage() {
   })
 
   const policyMap = Object.fromEntries(policies.map((p: Policy) => [p.id, p]))
+  const profileMap = Object.fromEntries(lockedProfiles.map((p: PolicyProfile) => [p.id, p]))
   const selectedST = solutionTypes.find((s: SolutionType) => s.id === solutionTypeId)
 
   // ── Mutations ────────────────────────────────────────────────────────────
   const createMut = useMutation({
-    mutationFn: () => createBlueprint(newName.trim(), solutionTypeId, componentPolicyMap),
+    mutationFn: () => createBlueprint(newName.trim(), solutionTypeId, componentProfileMap),
     onSuccess: (blueprint) => {
       qc.invalidateQueries({ queryKey: ['blueprints', workspaceId] })
       setNewName('')
-      setComponentPolicyMap({})
+      setComponentProfileMap({})
       setShowCreateForm(false)
       // Auto-trigger blueprint-level code generation
       triggerCodeGen(blueprint.id).catch(() => {/* silent */})
@@ -157,49 +186,49 @@ export default function HardeningBlueprintManagerPage() {
 
   const canCreate = !!solutionTypeId && newName.trim().length > 0 &&
     (selectedST?.component_selection ?? []).length > 0 &&
-    (selectedST?.component_selection ?? []).every((c: string) => !!componentPolicyMap[c])
+    (selectedST?.component_selection ?? []).every((c: string) => !!componentProfileMap[c])
 
-  // Build default policy map for a given component selection + available policies
-  const buildDefaultPolicyMap = useCallback(
+  // Build default profile map for a given component selection + available locked profiles
+  const buildDefaultProfileMap = useCallback(
     (componentIds: string[]): Record<string, string> => {
       const map: Record<string, string> = {}
       for (const compId of componentIds) {
-        const best = findBestPolicy(compId, policies)
+        const best = findBestProfile(compId, lockedProfiles, policies)
         if (best) map[compId] = best
       }
       return map
     },
-    [policies],
+    [lockedProfiles, policies],
   )
 
   const handleSolutionTypeChange = (id: string) => {
     setSolutionTypeId(id)
     const st = solutionTypes.find((s: SolutionType) => s.id === id)
-    setComponentPolicyMap(buildDefaultPolicyMap(st?.component_selection ?? []))
+    setComponentProfileMap(buildDefaultProfileMap(st?.component_selection ?? []))
   }
 
-  // Re-apply defaults when policies finish loading (they may arrive after ST selection)
+  // Re-apply defaults when locked profiles finish loading (they may arrive after ST selection)
   useEffect(() => {
-    if (!selectedST?.component_selection?.length || !policies.length) return
-    setComponentPolicyMap((prev) => {
+    if (!selectedST?.component_selection?.length || !lockedProfiles.length) return
+    setComponentProfileMap((prev) => {
       // Only fill in components that have no assignment yet
       const updated = { ...prev }
       let changed = false
       for (const compId of selectedST.component_selection as string[]) {
         if (!updated[compId]) {
-          const best = findBestPolicy(compId, policies)
+          const best = findBestProfile(compId, lockedProfiles, policies)
           if (best) { updated[compId] = best; changed = true }
         }
       }
       return changed ? updated : prev
     })
-  }, [policies, selectedST])
+  }, [lockedProfiles, policies, selectedST])
 
   const handleCancel = () => {
     setShowCreateForm(false)
     setSolutionTypeId('')
     setNewName('')
-    setComponentPolicyMap({})
+    setComponentProfileMap({})
   }
 
   return (
@@ -272,15 +301,15 @@ export default function HardeningBlueprintManagerPage() {
             </div>
           )}
 
-          {/* Per-component policy mapping */}
+          {/* Per-component profile mapping */}
           {solutionTypeId && (selectedST?.component_selection ?? []).length > 0 && (
             <div className="mb-4">
               <p className="text-xs font-semibold text-gray-600 mb-2">
-                Assign a security policy to each component type:
+                Assign a locked policy profile to each component type:
               </p>
-              {policies.length === 0 && (
+              {lockedProfiles.length === 0 && (
                 <p className="text-xs text-amber-500 mb-2">
-                  No policies found in this workspace. Upload at least one policy first.
+                  No locked profiles found in this workspace. Review and lock at least one profile first.
                 </p>
               )}
               <div className="divide-y border rounded overflow-hidden">
@@ -298,20 +327,23 @@ export default function HardeningBlueprintManagerPage() {
                         </span>
                       </div>
                       <select
-                        value={componentPolicyMap[compId] ?? ''}
+                        value={componentProfileMap[compId] ?? ''}
                         onChange={(e) =>
-                          setComponentPolicyMap((prev) => ({ ...prev, [compId]: e.target.value }))
+                          setComponentProfileMap((prev) => ({ ...prev, [compId]: e.target.value }))
                         }
                         className="flex-1 border rounded px-2 py-1 text-sm"
                       >
-                        <option value="">— select policy —</option>
-                        {policies.map((p: Policy) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} ({p.standard})
-                          </option>
-                        ))}
+                        <option value="">— select locked profile —</option>
+                        {lockedProfiles.map((prof: PolicyProfile) => {
+                          const pol = policyMap[prof.policy_id]
+                          return (
+                            <option key={prof.id} value={prof.id}>
+                              {prof.name} ({pol?.name ?? 'Unknown Policy'}) — v{prof.version}
+                            </option>
+                          )
+                        })}
                       </select>
-                      {componentPolicyMap[compId] ? (
+                      {componentProfileMap[compId] ? (
                         <span className="text-green-500 text-sm shrink-0">✓</span>
                       ) : (
                         <span className="text-gray-300 text-sm shrink-0">○</span>
@@ -320,9 +352,9 @@ export default function HardeningBlueprintManagerPage() {
                   )
                 })}
               </div>
-              {(selectedST!.component_selection as string[]).some((c: string) => !componentPolicyMap[c]) && (
+              {(selectedST!.component_selection as string[]).some((c: string) => !componentProfileMap[c]) && (
                 <p className="text-xs text-amber-500 mt-1">
-                  All components must have a policy assigned before creating the blueprint.
+                  All components must have a locked profile assigned before creating the blueprint.
                 </p>
               )}
             </div>
@@ -390,7 +422,7 @@ export default function HardeningBlueprintManagerPage() {
                 <h3 className="font-semibold text-aegis-dark mb-3 text-sm">{sectionLabel}</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   {visibleBlueprints.map((blueprint: HardeningBlueprint) => {
-                const cpm = blueprint.component_policy_map ?? {}
+                const cpm = blueprint.component_profile_map ?? {}
                 // find the solution type name for this blueprint
                 const blueprintST = solutionTypes.find((s: SolutionType) => s.id === blueprint.solution_type_id)
                 return (
@@ -410,11 +442,11 @@ export default function HardeningBlueprintManagerPage() {
                       </div>
                     )}
 
-                    {/* Component → Policy mapping summary */}
+                    {/* Component → Profile mapping summary */}
                     {Object.keys(cpm).length > 0 && (
                       <div className="text-xs text-gray-500 space-y-0.5">
-                        {Object.entries(cpm).map(([comp, polId]) => {
-                          const pol = policyMap[polId]
+                        {Object.entries(cpm).map(([comp, profId]) => {
+                          const prof = profileMap[profId]
                           const { label, category } = humanizeCompId(comp)
                           const badgeClass = CATEGORY_BADGE[category] ?? 'bg-gray-100 text-gray-700'
                           return (
@@ -422,7 +454,7 @@ export default function HardeningBlueprintManagerPage() {
                               <span className={`text-xs px-1 py-0.5 rounded ${badgeClass} shrink-0`}>{category}</span>
                               <span className="font-medium text-aegis-dark truncate max-w-[90px]" title={comp}>{label}</span>
                               <span className="text-gray-300">→</span>
-                              <span className="truncate" title={pol?.name ?? polId}>{pol?.name ?? polId}</span>
+                              <span className="truncate" title={prof?.name ?? profId}>{prof?.name ?? profId}</span>
                             </div>
                           )
                         })}

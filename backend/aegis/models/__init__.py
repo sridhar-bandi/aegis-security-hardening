@@ -2,6 +2,7 @@
 from aegis.models.user import User
 from aegis.models.workspace import Workspace, WorkspaceMember
 from aegis.models.policy import Policy, PolicyRule
+from aegis.models.policy_profile import PolicyProfile
 from aegis.models.solution_type import SolutionType
 from aegis.models.hardening_blueprint import HardeningBlueprint, BlueprintRule, HITLComment
 from aegis.models.solution_instance import SolutionInstance
@@ -14,6 +15,7 @@ __all__ = [
     "WorkspaceMember",
     "Policy",
     "PolicyRule",
+    "PolicyProfile",
     "SolutionType",
     "HardeningBlueprint",
     "BlueprintRule",

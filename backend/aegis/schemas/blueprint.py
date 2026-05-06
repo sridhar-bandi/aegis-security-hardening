@@ -8,9 +8,9 @@ from pydantic import BaseModel, ConfigDict
 class HardeningBlueprintCreate(BaseModel):
     name: str
     solution_type_id: uuid.UUID
-    # Maps each component_type (string) to the policy_id (UUID) that governs it.
-    # e.g. {"server": "<policy-uuid>", "network_switch": "<policy-uuid>"}
-    component_policy_map: dict[str, uuid.UUID]
+    # Maps each component_type (string) to the locked profile_id (UUID) that governs it.
+    # e.g. {"server": "<profile-uuid>", "network_switch": "<profile-uuid>"}
+    component_profile_map: dict[str, uuid.UUID]
 
 
 class HardeningBlueprintResponse(BaseModel):
@@ -19,8 +19,7 @@ class HardeningBlueprintResponse(BaseModel):
     id: uuid.UUID
     name: str
     solution_type_id: uuid.UUID
-    policy_id: uuid.UUID | None
-    component_policy_map: dict | None
+    component_profile_map: dict | None
     status: str
     created_at: datetime
 

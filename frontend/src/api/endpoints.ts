@@ -5,6 +5,7 @@ import type {
   HardeningBlueprint,
   Policy,
   PolicyRule,
+  PolicyProfile,
   BlueprintRule,
   SolutionInstance,
   SolutionType,
@@ -44,6 +45,39 @@ export const deletePolicy = (policyId: string) => api.delete(`/policies/${policy
 export const generatePolicyCodes = (policyId: string, ruleIds?: string[]) =>
   api.post<{ task_id: string; channel: string }>(`/policies/${policyId}/generate-codes`, { rule_ids: ruleIds ?? null }).then((r) => r.data)
 
+// Policy Rule Review
+export const updatePolicyRuleCode = (policyId: string, ruleId: string, codes: Partial<Pick<PolicyRule, 'evaluation_code' | 'remediation_code' | 'rollback_code'>>) =>
+  api.patch<PolicyRule>(`/policies/${policyId}/rules/${ruleId}/code`, codes).then((r) => r.data)
+export const approvePolicyRule = (policyId: string, ruleId: string) =>
+  api.post<PolicyRule>(`/policies/${policyId}/rules/${ruleId}/approve`).then((r) => r.data)
+export const rejectPolicyRule = (policyId: string, ruleId: string, reason?: string) =>
+  api.post<PolicyRule>(`/policies/${policyId}/rules/${ruleId}/reject`, { reason }).then((r) => r.data)
+export const importPolicyRuleCode = (policyId: string, ruleId: string, codeType: string, file: File) => {
+  const form = new FormData()
+  form.append('file', file)
+  return api.post<PolicyRule>(`/policies/${policyId}/rules/${ruleId}/import`, form, {
+    params: { code_type: codeType },
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then((r) => r.data)
+}
+
+// Policy Profiles
+export const createProfile = (policyId: string, data: { name: string; description?: string; profile_type?: string; included_rule_ids?: string[] }) =>
+  api.post<PolicyProfile>(`/profiles/policies/${policyId}/profiles`, data).then((r) => r.data)
+export const listProfiles = (policyId: string) =>
+  api.get<PolicyProfile[]>(`/profiles/policies/${policyId}/profiles`).then((r) => r.data)
+export const getProfile = (profileId: string) =>
+  api.get<PolicyProfile>(`/profiles/${profileId}`).then((r) => r.data)
+export const updateProfile = (profileId: string, data: { name?: string; description?: string; included_rule_ids?: string[] }) =>
+  api.patch<PolicyProfile>(`/profiles/${profileId}`, data).then((r) => r.data)
+export const deleteProfile = (profileId: string) => api.delete(`/profiles/${profileId}`)
+export const promoteProfile = (profileId: string) =>
+  api.post<PolicyProfile>(`/profiles/${profileId}/promote`).then((r) => r.data)
+export const newProfileVersion = (profileId: string) =>
+  api.post<PolicyProfile>(`/profiles/${profileId}/new-version`).then((r) => r.data)
+export const listLockedProfiles = (workspaceId: string) =>
+  api.get<PolicyProfile[]>(`/profiles/workspace/${workspaceId}`, { params: { status_filter: 'locked' } }).then((r) => r.data)
+
 // Solution Types
 export const listSolutionTypes = (workspaceId: string) =>
   api.get<SolutionType[]>('/solution-types', { params: { workspace_id: workspaceId } }).then((r) => r.data)
@@ -58,8 +92,8 @@ export const listBlueprints = (solutionTypeId: string) =>
   api.get<HardeningBlueprint[]>('/blueprints', { params: { solution_type_id: solutionTypeId } }).then((r) => r.data)
 export const listAllBlueprints = (workspaceId: string) =>
   api.get<HardeningBlueprint[]>('/blueprints', { params: { workspace_id: workspaceId } }).then((r) => r.data)
-export const createBlueprint = (name: string, solutionTypeId: string, componentPolicyMap: Record<string, string>) =>
-  api.post<HardeningBlueprint>('/blueprints', { name, solution_type_id: solutionTypeId, component_policy_map: componentPolicyMap }).then((r) => r.data)
+export const createBlueprint = (name: string, solutionTypeId: string, componentProfileMap: Record<string, string>) =>
+  api.post<HardeningBlueprint>('/blueprints', { name, solution_type_id: solutionTypeId, component_profile_map: componentProfileMap }).then((r) => r.data)
 export const getBlueprint = (blueprintId: string) =>
   api.get<HardeningBlueprint>(`/blueprints/${blueprintId}`).then((r) => r.data)
 export const listBlueprintRules = (blueprintId: string) =>

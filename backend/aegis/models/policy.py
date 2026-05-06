@@ -39,6 +39,7 @@ class Policy(Base):
 
     workspace: Mapped["Workspace"] = relationship("Workspace", back_populates="policies")
     rules: Mapped[list["PolicyRule"]] = relationship("PolicyRule", back_populates="policy", cascade="all, delete-orphan")
+    profiles: Mapped[list["PolicyProfile"]] = relationship("PolicyProfile", back_populates="policy", cascade="all, delete-orphan")
 
 
 class PolicyRule(Base):
@@ -68,6 +69,15 @@ class PolicyRule(Base):
         nullable=False,
         default="pending",
     )
+    code_source: Mapped[str] = mapped_column(
+        Enum("llm", "manual", "imported", name="code_source", create_type=False),
+        nullable=False,
+        default="llm",
+        server_default="llm",
+    )
+    imported_filename: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    reviewed_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     milvus_embedding_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
@@ -78,3 +88,4 @@ class PolicyRule(Base):
 
 from aegis.models.workspace import Workspace  # noqa: F401, E402
 from aegis.models.hardening_blueprint import BlueprintRule  # noqa: F401, E402
+from aegis.models.policy_profile import PolicyProfile  # noqa: F401, E402

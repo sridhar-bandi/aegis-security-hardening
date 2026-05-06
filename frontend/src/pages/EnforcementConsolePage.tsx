@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { listJobs, evaluateInstance, remediateInstance, rollbackInstance, dryRunInstance } from '../api/endpoints'
 import type { EnforcementJob } from '../types'
@@ -10,6 +10,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 export default function EnforcementConsolePage() {
   const { instanceId } = useParams<{ instanceId: string }>()
+  const navigate = useNavigate()
   const [log, setLog] = useState<string[]>([])
   const [activeJobId, setActiveJobId] = useState<string | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
@@ -57,7 +58,14 @@ export default function EnforcementConsolePage() {
   const isRunning = evalMut.isPending || remMut.isPending || rollMut.isPending || dryMut.isPending
 
   return (
-    <div className="flex gap-6 h-full" style={{ minHeight: '80vh' }}>
+    <div className="flex flex-col h-full" style={{ minHeight: '80vh' }}>
+      <button
+        onClick={() => navigate('/instances')}
+        className="flex items-center gap-1 text-sm text-slate-500 hover:text-aegis-blue mb-3 w-fit"
+      >
+        <span>←</span> Back to Instances
+      </button>
+      <div className="flex gap-6 flex-1">
       {/* Left: actions + log */}
       <div className="flex-1 flex flex-col gap-4">
         <h2 className="text-xl font-bold text-aegis-dark">Enforcement Console</h2>
@@ -114,6 +122,7 @@ export default function EnforcementConsolePage() {
             </button>
           ))}
         </div>
+      </div>
       </div>
     </div>
   )

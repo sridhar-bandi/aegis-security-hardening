@@ -179,7 +179,14 @@ export default function HardeningBlueprintEditorPage() {
   }
 
   return (
-    <div className="flex gap-4 h-full" style={{ minHeight: '80vh' }}>
+    <div className="flex flex-col h-full" style={{ minHeight: '80vh' }}>
+      <button
+        onClick={() => navigate('/blueprints')}
+        className="flex items-center gap-1 text-sm text-slate-500 hover:text-aegis-blue mb-3 w-fit"
+      >
+        <span>←</span> Back to Blueprints
+      </button>
+      <div className="flex gap-4 flex-1">
       {/* ── Sidebar ── */}
       <div className="w-72 flex-shrink-0 flex flex-col overflow-y-auto">
         {/* Header row */}
@@ -342,6 +349,7 @@ export default function HardeningBlueprintEditorPage() {
             <span className="text-sm">Select a rule from the component list to view and edit its generated code.</span>
           </div>
         )}
+      </div>
       </div>
     </div>
   )

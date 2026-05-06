@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import tempfile
 import uuid
+from datetime import datetime, timezone
 from typing import Annotated
 
 import requests as http_requests
@@ -15,7 +16,14 @@ from aegis.config import settings
 from aegis.database import get_db
 from aegis.models.policy import Policy, PolicyRule
 from aegis.models.user import User
-from aegis.schemas.policy import PolicyImportRequest, PolicyCodeGenRequest, PolicyResponse, PolicyRuleResponse
+from aegis.schemas.policy import (
+    PolicyCodeGenRequest,
+    PolicyImportRequest,
+    PolicyResponse,
+    PolicyRuleCodeUpdate,
+    PolicyRuleRejectRequest,
+    PolicyRuleResponse,
+)
 from aegis.services.rbac import check_workspace_access, get_current_user, require_role
 
 router = APIRouter(prefix="/policies", tags=["policies"])
@@ -200,3 +208,111 @@ async def delete_policy(
     await check_workspace_access(policy.workspace_id, current_user, db)
     await db.delete(policy)
     await db.commit()
+
+
+# --- Rule Review Endpoints ---
+
+
+async def _get_policy_rule(policy_id: uuid.UUID, rule_id: uuid.UUID, db: AsyncSession, current_user: User) -> PolicyRule:
+    """Helper: fetch a PolicyRule ensuring workspace access."""
+    result = await db.execute(select(Policy).where(Policy.id == policy_id))
+    policy = result.scalar_one_or_none()
+    if policy is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Policy not found")
+    await check_workspace_access(policy.workspace_id, current_user, db)
+    result = await db.execute(
+        select(PolicyRule).where(PolicyRule.id == rule_id, PolicyRule.policy_id == policy_id)
+    )
+    rule = result.scalar_one_or_none()
+    if rule is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found")
+    return rule
+
+
+@router.patch("/{policy_id}/rules/{rule_id}/code", response_model=PolicyRuleResponse)
+async def update_rule_code(
+    policy_id: uuid.UUID,
+    rule_id: uuid.UUID,
+    body: PolicyRuleCodeUpdate,
+    current_user: Annotated[User, Depends(require_role("admin", "security_officer"))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> PolicyRuleResponse:
+    """Manually update rule implementation code."""
+    rule = await _get_policy_rule(policy_id, rule_id, db, current_user)
+    if body.evaluation_code is not None:
+        rule.evaluation_code = body.evaluation_code
+    if body.remediation_code is not None:
+        rule.remediation_code = body.remediation_code
+    if body.rollback_code is not None:
+        rule.rollback_code = body.rollback_code
+    rule.code_source = "manual"
+    rule.code_status = "reviewed"
+    await db.commit()
+    await db.refresh(rule)
+    return PolicyRuleResponse.model_validate(rule)
+
+
+@router.post("/{policy_id}/rules/{rule_id}/approve", response_model=PolicyRuleResponse)
+async def approve_rule(
+    policy_id: uuid.UUID,
+    rule_id: uuid.UUID,
+    current_user: Annotated[User, Depends(require_role("admin", "security_officer"))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> PolicyRuleResponse:
+    """Approve a rule's implementation code."""
+    rule = await _get_policy_rule(policy_id, rule_id, db, current_user)
+    if not rule.evaluation_code:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Rule must have evaluation_code before approval",
+        )
+    rule.code_status = "approved"
+    rule.reviewed_by = current_user.id
+    rule.reviewed_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(rule)
+    return PolicyRuleResponse.model_validate(rule)
+
+
+@router.post("/{policy_id}/rules/{rule_id}/reject", response_model=PolicyRuleResponse)
+async def reject_rule(
+    policy_id: uuid.UUID,
+    rule_id: uuid.UUID,
+    body: PolicyRuleRejectRequest | None = None,
+    current_user: Annotated[User, Depends(require_role("admin", "security_officer"))] = None,
+    db: Annotated[AsyncSession, Depends(get_db)] = None,
+) -> PolicyRuleResponse:
+    """Reject a rule's implementation code."""
+    rule = await _get_policy_rule(policy_id, rule_id, db, current_user)
+    rule.code_status = "rejected"
+    rule.reviewed_by = current_user.id
+    rule.reviewed_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(rule)
+    return PolicyRuleResponse.model_validate(rule)
+
+
+@router.post("/{policy_id}/rules/{rule_id}/import", response_model=PolicyRuleResponse)
+async def import_rule_code(
+    policy_id: uuid.UUID,
+    rule_id: uuid.UUID,
+    code_type: str = Query(..., description="evaluation | remediation | rollback"),
+    file: UploadFile = File(...),
+    current_user: Annotated[User, Depends(require_role("admin", "security_officer"))] = None,
+    db: Annotated[AsyncSession, Depends(get_db)] = None,
+) -> PolicyRuleResponse:
+    """Import an external script file as rule implementation code."""
+    if code_type not in ("evaluation", "remediation", "rollback"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="code_type must be one of: evaluation, remediation, rollback",
+        )
+    rule = await _get_policy_rule(policy_id, rule_id, db, current_user)
+    content = (await file.read()).decode("utf-8")
+    setattr(rule, f"{code_type}_code", content)
+    rule.code_source = "imported"
+    rule.imported_filename = file.filename
+    rule.code_status = "reviewed"
+    await db.commit()
+    await db.refresh(rule)
+    return PolicyRuleResponse.model_validate(rule)

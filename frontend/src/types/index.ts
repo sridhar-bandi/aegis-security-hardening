@@ -47,6 +47,14 @@ export interface PolicyRule {
   target_component_types: string[] | null
   check_content: string | null
   fix_text: string | null
+  evaluation_code: string | null
+  remediation_code: string | null
+  rollback_code: string | null
+  code_status: 'pending' | 'generating' | 'generated' | 'reviewed' | 'approved' | 'rejected'
+  code_source: 'llm' | 'manual' | 'imported'
+  imported_filename: string | null
+  reviewed_by: string | null
+  reviewed_at: string | null
   created_at: string
 }
 
@@ -63,10 +71,27 @@ export interface HardeningBlueprint {
   id: string
   name: string
   solution_type_id: string
-  policy_id: string | null
-  component_policy_map: Record<string, string> | null
+  component_profile_map: Record<string, string> | null
   status: 'draft' | 'generating' | 'ready'
   created_at: string
+}
+
+export interface PolicyProfile {
+  id: string
+  policy_id: string
+  workspace_id: string
+  name: string
+  description: string | null
+  version: number
+  parent_version_id: string | null
+  profile_type: 'standard' | 'tailored'
+  status: 'draft' | 'in_review' | 'approved' | 'locked'
+  included_rule_ids: string[] | null
+  created_by: string | null
+  created_at: string
+  locked_at: string | null
+  rule_count: number
+  approved_count: number
 }
 
 export interface BlueprintRule {

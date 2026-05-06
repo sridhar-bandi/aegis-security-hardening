@@ -40,7 +40,22 @@ class PolicyRuleResponse(BaseModel):
     remediation_code: str | None
     rollback_code: str | None
     code_status: str
+    # Review/import tracking fields
+    code_source: str = "llm"
+    imported_filename: str | None = None
+    reviewed_by: uuid.UUID | None = None
+    reviewed_at: datetime | None = None
     created_at: datetime
+
+
+class PolicyRuleCodeUpdate(BaseModel):
+    evaluation_code: str | None = None
+    remediation_code: str | None = None
+    rollback_code: str | None = None
+
+
+class PolicyRuleRejectRequest(BaseModel):
+    reason: str | None = None
 
 
 class PolicyImportRequest(BaseModel):

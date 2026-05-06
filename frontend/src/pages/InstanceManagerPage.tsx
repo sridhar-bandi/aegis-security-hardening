@@ -58,9 +58,8 @@ export default function InstanceManagerPage() {
   // Selected solution type details
   const selectedSolutionType = solutionTypeId ? stMap[solutionTypeId] : null
 
-  // Applicable policies: those referenced by blueprints for the selected solution type
-  const applicablePolicyIds = new Set(blueprints.map((p: HardeningBlueprint) => p.policy_id))
-  const applicablePolicies = policies.filter((p: Policy) => applicablePolicyIds.has(p.id))
+  // Applicable policies: those referenced via component_profile_map in blueprints
+  const applicablePolicies = policies
 
   const handleSolutionTypeChange = (id: string) => {
     setSolutionTypeId(id)
@@ -134,14 +133,11 @@ export default function InstanceManagerPage() {
               className="w-full border rounded px-2 py-1.5 text-sm disabled:opacity-50 disabled:bg-gray-50"
             >
               <option value="">Select blueprint…</option>
-              {blueprints.map((p: HardeningBlueprint) => {
-                const policy = p.policy_id ? policyMap[p.policy_id] : undefined
-                return (
-                  <option key={p.id} value={p.id}>
-                    {p.name}{policy ? ` (${policy.name})` : ''}
-                  </option>
-                )
-              })}
+              {blueprints.map((p: HardeningBlueprint) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
             </select>
             {blueprints.length === 0 && solutionTypeId && (
               <p className="text-xs text-amber-500 mt-1">No blueprints yet for this solution type</p>
