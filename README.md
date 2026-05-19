@@ -72,6 +72,8 @@ AEGIS is an AI-driven security hardening platform for HPE Private Cloud solution
 | **Compliance Dashboard** | Aggregated pass/fail compliance reports per instance |
 | **User Management** | Full RBAC with four roles; workspace-scoped access control |
 | **Vault Integration** | Credential references in endpoint configs resolved at runtime from HashiCorp Vault |
+| **Nautobot Golden Config** | Alternative data-driven evaluation method — LLM generates intended device configuration (CLI/JSON) and pushes to Nautobot for continuous drift monitoring |
+| **Solution Type Upload** | Import solution type definitions from JSON files describing racks, servers, VMs, and network topology |
 
 ---
 
@@ -186,6 +188,10 @@ Copy `.env.example` to `.env` and set the following values:
 | `OLLAMA_MODEL` | Ollama model (when not using OpenAI) | `codellama:34b` |
 | `OLLAMA_EMBED_MODEL` | Ollama embedding model | `nomic-embed-text` |
 | `VITE_API_URL` | Backend URL used by the frontend dev server | `http://localhost:8000` |
+| `NAUTOBOT_URL` | Nautobot instance base URL (optional) | `""` |
+| `NAUTOBOT_API_TOKEN` | Nautobot REST API token (optional) | `""` |
+| `NAUTOBOT_VERIFY_SSL` | Verify SSL for Nautobot connections | `true` |
+| `NAUTOBOT_GOLDEN_CONFIG_REPO` | Git repo URL for Nautobot intended configs (optional) | `""` |
 
 ---
 
@@ -202,7 +208,7 @@ All API routes are prefixed with `/api/v1`. Authentication uses OAuth2 Bearer to
 | Profiles | `/api/v1/profiles` | Policy profile CRUD (standard/tailored); promote, lock, version |
 | Solution Types | `/api/v1/solution-types` | Define infrastructure target types |
 | Blueprints | `/api/v1/blueprints` | Hardening blueprints with component-to-profile mapping; rule code review |
-| Instances | `/api/v1/instances` | Register instances; trigger enforcement jobs |
+| Instances | `/api/v1/instances` | Register instances; trigger enforcement jobs; push golden config to Nautobot |
 | WebSocket | `/ws/{channel}` | Real-time job progress (codegen, enforcement) |
 
 Full interactive documentation: **http://localhost:8000/docs**
@@ -231,6 +237,7 @@ AEGIS connects to target infrastructure using pluggable connectors selected by t
 | Kubernetes | `kubernetes` | `kubernetes` Python client |
 | Redfish (iLO/BMC) | `redfish` | REST via `requests` |
 | HashiCorp Vault | `vault` | `hvac` (credential resolver) |
+| Nautobot | `nautobot` | REST API via `requests` (Golden Config push) |
 
 Credential references in endpoint configs follow the `vault://secret/path#key` syntax and are resolved at evaluation time.
 
@@ -276,7 +283,7 @@ Aegis-SecurityHardening/
 │   │   ├── models/           # SQLAlchemy ORM models
 │   │   ├── schemas/          # Pydantic request/response schemas
 │   │   ├── services/
-│   │   │   ├── connectors/   # SSH, Netmiko, K8s, Redfish, Vault
+│   │   │   ├── connectors/   # SSH, Netmiko, K8s, Redfish, Vault, Nautobot
 │   │   │   ├── enforcement/  # Evaluator, remediator, rollback, dry-run
 │   │   │   ├── llm/          # LLM client, code generator, Milvus store
 │   │   │   ├── policy_parser/# OVAL, XCCDF, text parsers
@@ -298,14 +305,19 @@ Aegis-SecurityHardening/
 │       │   ├── DashboardPage
 │       │   ├── PolicyManagerPage         # Policy import, profiles, rule overview
 │       │   ├── PolicyImplementationEditorPage  # Monaco code editor for rule review
+│       │   ├── SolutionTypeBuilderPage   # Solution type definition + JSON upload
 │       │   ├── HardeningBlueprintManagerPage   # Blueprint creation with profile mapping
 │       │   ├── HardeningBlueprintEditorPage    # Blueprint rule code review
 │       │   ├── InstanceManagerPage       # Instance registration
-│       │   ├── EnforcementConsolePage    # Enforcement execution + live logs
+│       │   ├── EnforcementConsolePage    # Enforcement execution + Nautobot push
 │       │   └── UserManagementPage
 │       └── types/            # TypeScript type definitions
 ├── projects/
-│   └── PCAI/scid/            # HPE PCAI infrastructure layout definitions
+│   ├── PCAI/scid/            # HPE PCAI infrastructure layout definitions
+│   ├── sample-policies/      # Sample CIS/HPE policy JSON files + seed script
+│   └── sample-solution-type-upload.json  # Example solution type import file
+├── scripts/
+│   └── restart-docker.ps1    # Helper script to restart Docker services
 ├── docker-compose.yml        # Production stack
 ├── docker-compose.dev.yml    # Development overrides (hot-reload)
 └── .env.example              # Environment variable template

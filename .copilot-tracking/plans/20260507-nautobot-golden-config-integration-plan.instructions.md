@@ -51,78 +51,78 @@ Add an alternative data-driven evaluation method that generates golden configura
 
 ## Implementation Checklist
 
-### [ ] Phase 1: Database & Model Changes
+### [x] Phase 1: Database & Model Changes
 
-- [ ] Task 1.1: Create Alembic migration 007 — add evaluation_method, golden_config_data, golden_config_format columns to policy_rules and blueprint_rules tables
+- [x] Task 1.1: Create Alembic migration 007 — add evaluation_method, golden_config_data, golden_config_format columns to policy_rules and blueprint_rules tables
   - Details: .copilot-tracking/details/20260507-nautobot-golden-config-integration-details.md (Lines 11-72)
 
-- [ ] Task 1.2: Update PolicyRule ORM model with new fields (evaluation_method, golden_config_data, golden_config_format)
+- [x] Task 1.2: Update PolicyRule ORM model with new fields (evaluation_method, golden_config_data, golden_config_format)
   - Details: .copilot-tracking/details/20260507-nautobot-golden-config-integration-details.md (Lines 74-109)
 
-- [ ] Task 1.3: Update BlueprintRule ORM model with new fields (evaluation_method, golden_config_data, golden_config_format)
+- [x] Task 1.3: Update BlueprintRule ORM model with new fields (evaluation_method, golden_config_data, golden_config_format)
   - Details: .copilot-tracking/details/20260507-nautobot-golden-config-integration-details.md (Lines 111-140)
 
-### [ ] Phase 2: Configuration & Nautobot Connector
+### [x] Phase 2: Configuration & Nautobot Connector
 
-- [ ] Task 2.1: Add Nautobot settings to config.py (NAUTOBOT_URL, NAUTOBOT_API_TOKEN, NAUTOBOT_GOLDEN_CONFIG_REPO)
+- [x] Task 2.1: Add Nautobot settings to config.py (NAUTOBOT_URL, NAUTOBOT_API_TOKEN, NAUTOBOT_GOLDEN_CONFIG_REPO)
   - Details: .copilot-tracking/details/20260507-nautobot-golden-config-integration-details.md (Lines 142-171)
 
-- [ ] Task 2.2: Create NautobotConnector service class for REST API interaction
+- [x] Task 2.2: Create NautobotConnector service class for REST API interaction
   - Details: .copilot-tracking/details/20260507-nautobot-golden-config-integration-details.md (Lines 173-260)
 
-### [ ] Phase 3: LLM Golden Config Generation
+### [x] Phase 3: LLM Golden Config Generation
 
-- [ ] Task 3.1: Add golden config prompt templates to prompts.py (GOLDEN_CONFIG_CLI_TEMPLATE, GOLDEN_CONFIG_JSON_TEMPLATE)
+- [x] Task 3.1: Add golden config prompt templates to prompts.py (GOLDEN_CONFIG_CLI_TEMPLATE, GOLDEN_CONFIG_JSON_TEMPLATE)
   - Details: .copilot-tracking/details/20260507-nautobot-golden-config-integration-details.md (Lines 262-336)
 
-- [ ] Task 3.2: Extend CodeGenerator with generate_golden_config() method
+- [x] Task 3.2: Extend CodeGenerator with generate_golden_config() method
   - Details: .copilot-tracking/details/20260507-nautobot-golden-config-integration-details.md (Lines 338-392)
 
-### [ ] Phase 4: Celery Tasks & Backend Logic
+### [x] Phase 4: Celery Tasks & Backend Logic
 
-- [ ] Task 4.1: Add Celery task for golden config generation (generate_golden_configs task)
+- [x] Task 4.1: Add Celery task for golden config generation (generate_golden_configs task)
   - Details: .copilot-tracking/details/20260507-nautobot-golden-config-integration-details.md (Lines 394-456)
 
-- [ ] Task 4.2: Add Celery task for pushing golden config to Nautobot (push_golden_config_to_nautobot task)
+- [x] Task 4.2: Add Celery task for pushing golden config to Nautobot (push_golden_config_to_nautobot task)
   - Details: .copilot-tracking/details/20260507-nautobot-golden-config-integration-details.md (Lines 458-520)
 
-### [ ] Phase 5: API Endpoints & Schemas
+### [x] Phase 5: API Endpoints & Schemas
 
-- [ ] Task 5.1: Add Pydantic schemas for golden config requests/responses
+- [x] Task 5.1: Add Pydantic schemas for golden config requests/responses
   - Details: .copilot-tracking/details/20260507-nautobot-golden-config-integration-details.md (Lines 522-573)
 
-- [ ] Task 5.2: Add API endpoint POST /policies/{id}/generate-golden-config
+- [x] Task 5.2: Add API endpoint POST /policies/{id}/generate-golden-config
   - Details: .copilot-tracking/details/20260507-nautobot-golden-config-integration-details.md (Lines 575-618)
 
-- [ ] Task 5.3: Add API endpoint POST /instances/{id}/push-nautobot
+- [x] Task 5.3: Add API endpoint POST /instances/{id}/push-nautobot
   - Details: .copilot-tracking/details/20260507-nautobot-golden-config-integration-details.md (Lines 620-668)
 
-- [ ] Task 5.4: Add API endpoint PATCH /policies/{id}/rules/{rule_id}/evaluation-method for toggling evaluation method
+- [x] Task 5.4: Add API endpoint PATCH /policies/{id}/rules/{rule_id}/evaluation-method for toggling evaluation method
   - Details: .copilot-tracking/details/20260507-nautobot-golden-config-integration-details.md (Lines 670-705)
 
-### [ ] Phase 6: Frontend Updates
+### [x] Phase 6: Frontend Updates
 
-- [ ] Task 6.1: Update TypeScript types (PolicyRule, BlueprintRule) with new fields
+- [x] Task 6.1: Update TypeScript types (PolicyRule, BlueprintRule) with new fields
   - Details: .copilot-tracking/details/20260507-nautobot-golden-config-integration-details.md (Lines 707-738)
 
-- [ ] Task 6.2: Add API endpoint functions for golden config operations
+- [x] Task 6.2: Add API endpoint functions for golden config operations
   - Details: .copilot-tracking/details/20260507-nautobot-golden-config-integration-details.md (Lines 740-770)
 
-- [ ] Task 6.3: Add evaluation method toggle UI in PolicyManager component
+- [x] Task 6.3: Add evaluation method toggle UI in PolicyManager component
   - Details: .copilot-tracking/details/20260507-nautobot-golden-config-integration-details.md (Lines 772-815)
 
-- [ ] Task 6.4: Add "Push to Nautobot" button in EnforcementConsole for instances with golden config
+- [x] Task 6.4: Add "Push to Nautobot" button in EnforcementConsole for instances with golden config
   - Details: .copilot-tracking/details/20260507-nautobot-golden-config-integration-details.md (Lines 817-855)
 
-### [ ] Phase 7: Testing & Documentation
+### [x] Phase 7: Testing & Documentation
 
-- [ ] Task 7.1: Add unit tests for NautobotConnector
+- [x] Task 7.1: Add unit tests for NautobotConnector
   - Details: .copilot-tracking/details/20260507-nautobot-golden-config-integration-details.md (Lines 857-895)
 
-- [ ] Task 7.2: Add unit tests for golden config generation prompt/flow
+- [x] Task 7.2: Add unit tests for golden config generation prompt/flow
   - Details: .copilot-tracking/details/20260507-nautobot-golden-config-integration-details.md (Lines 897-930)
 
-- [ ] Task 7.3: Update .env.example with Nautobot configuration variables
+- [x] Task 7.3: Update .env.example with Nautobot configuration variables
   - Details: .copilot-tracking/details/20260507-nautobot-golden-config-integration-details.md (Lines 932-950)
 
 ## Dependencies
