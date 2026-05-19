@@ -60,10 +60,27 @@ class PolicyRule(Base):
     target_component_types: Mapped[list | None] = mapped_column(JSON, nullable=True)
     check_content: Mapped[str | None] = mapped_column(Text, nullable=True)
     fix_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Evaluation method: script (default, exec-based) or nautobot_golden_config (data-driven)
+    evaluation_method: Mapped[str] = mapped_column(
+        Enum("script", "nautobot_golden_config", name="evaluation_method", create_type=False),
+        nullable=False,
+        default="script",
+        server_default="script",
+    )
     # LLM-generated code stored at the policy rule level (canonical / baseline)
     evaluation_code: Mapped[str | None] = mapped_column(Text, nullable=True)
     remediation_code: Mapped[str | None] = mapped_column(Text, nullable=True)
     rollback_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Golden configuration data (CLI text or JSON) for Nautobot integration
+    golden_config_data: Mapped[str | None] = mapped_column(Text, nullable=True)
+    golden_config_format: Mapped[str | None] = mapped_column(
+        Enum("cli", "json", name="golden_config_format", create_type=False),
+        nullable=True,
+    )
+    golden_config_status: Mapped[str | None] = mapped_column(
+        Enum("pending", "generating", "generated", "reviewed", "approved", name="golden_config_status", create_type=False),
+        nullable=True,
+    )
     code_status: Mapped[str] = mapped_column(
         Enum("pending", "generating", "generated", "reviewed", "approved", "rejected", name="code_status"),
         nullable=False,

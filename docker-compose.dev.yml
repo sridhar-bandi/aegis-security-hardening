@@ -5,7 +5,6 @@ services:
   aegis-api:
     build:
       context: ./backend
-      target: builder
     volumes:
       - ./backend:/app
     command: uvicorn aegis.main:app --host 0.0.0.0 --port 8000 --reload
@@ -19,12 +18,14 @@ services:
     command: celery -A aegis.worker.celery_app worker --loglevel=debug --concurrency=2
 
   aegis-ui:
-    build: ./frontend
+    build:
+      context: ./frontend
+      target: builder
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    command: npm run dev -- --host
+    command: sh -c "npm install && npm run dev -- --host"
     ports:
       - "5173:5173"
     environment:
-      VITE_API_URL: http://localhost:8000
+      VITE_API_URL: http://aegis-api:8000

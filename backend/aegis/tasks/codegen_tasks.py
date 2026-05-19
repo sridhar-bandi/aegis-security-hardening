@@ -337,3 +337,235 @@ async def _generate_blueprint_codes_async(
     redis_client.close()
     await engine.dispose()
     return results
+
+
+# ---------------------------------------------------------------------------
+# Golden Config Generation (Nautobot integration)
+# ---------------------------------------------------------------------------
+
+
+@celery_app.task(bind=True, base=_BaseTask, name="codegen.generate_golden_configs", max_retries=2)
+def generate_golden_configs(
+    self: "_BaseTask",
+    policy_id: str,
+    rule_ids: list[str] | None = None,
+    config_format: str = "cli",
+) -> dict:
+    """
+    Generate golden configuration data (for Nautobot) for PolicyRules that use
+    the nautobot_golden_config evaluation method.
+    """
+    return self.run_async(_generate_golden_configs_async(policy_id, rule_ids, config_format, self))
+
+
+async def _generate_golden_configs_async(
+    policy_id: str,
+    rule_ids: list[str] | None,
+    config_format: str,
+    task: "_BaseTask",
+) -> dict:
+    from sqlalchemy import select, update
+    from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+
+    from aegis.models.policy import PolicyRule
+    from aegis.services.llm.code_generator import CodeGenerator
+
+    engine = create_async_engine(settings.DATABASE_URL, echo=False)
+    SessionFactory = async_sessionmaker(engine, expire_on_commit=False)
+
+    redis_client = Redis.from_url(settings.REDIS_URL)
+    channel = f"ws:golden-config:policy:{policy_id}"
+    generator = CodeGenerator()
+
+    results = {"generated": 0, "failed": 0, "skipped": 0}
+
+    async with SessionFactory() as db:
+        query = (
+            select(PolicyRule)
+            .where(PolicyRule.policy_id == uuid.UUID(policy_id))
+            .where(PolicyRule.evaluation_method == "nautobot_golden_config")
+        )
+        if rule_ids:
+            query = query.where(PolicyRule.id.in_([uuid.UUID(r) for r in rule_ids]))
+
+        result = await db.execute(query)
+        rules: list[PolicyRule] = list(result.scalars().all())
+
+        total = len(rules)
+        _publish(redis_client, channel, {"type": "started", "total": total})
+
+        for idx, pol_rule in enumerate(rules, start=1):
+            try:
+                # Mark as generating
+                await db.execute(
+                    update(PolicyRule)
+                    .where(PolicyRule.id == pol_rule.id)
+                    .values(golden_config_status="generating")
+                )
+                await db.commit()
+
+                component_type = (
+                    pol_rule.target_component_types[0]
+                    if pol_rule.target_component_types
+                    else "generic"
+                )
+
+                _publish(redis_client, channel, {
+                    "type": "generating",
+                    "rule_id": str(pol_rule.id),
+                    "index": idx,
+                    "total": total,
+                })
+
+                golden_config = await generator.generate_golden_config(
+                    rule_id=pol_rule.rule_id,
+                    title=pol_rule.title,
+                    description=pol_rule.description or "",
+                    severity=pol_rule.severity,
+                    component_type=component_type,
+                    check_content=pol_rule.check_content or "",
+                    config_format=config_format,
+                )
+
+                await db.execute(
+                    update(PolicyRule)
+                    .where(PolicyRule.id == pol_rule.id)
+                    .values(
+                        golden_config_data=golden_config,
+                        golden_config_format=config_format,
+                        golden_config_status="generated",
+                    )
+                )
+                await db.commit()
+
+                _publish(redis_client, channel, {
+                    "type": "done",
+                    "rule_id": str(pol_rule.id),
+                    "index": idx,
+                    "total": total,
+                })
+                results["generated"] += 1
+
+            except Exception as exc:
+                logger.exception(
+                    "Golden config generation failed for policy_rule %s: %s",
+                    pol_rule.id,
+                    exc,
+                )
+                await db.execute(
+                    update(PolicyRule)
+                    .where(PolicyRule.id == pol_rule.id)
+                    .values(golden_config_status="pending")
+                )
+                await db.commit()
+                _publish(redis_client, channel, {
+                    "type": "error",
+                    "rule_id": str(pol_rule.id),
+                    "error": str(exc),
+                })
+                results["failed"] += 1
+
+    _publish(redis_client, channel, {"type": "completed", **results})
+    redis_client.close()
+    await engine.dispose()
+    return results
+
+
+@celery_app.task(bind=True, base=_BaseTask, name="codegen.push_golden_config_to_nautobot", max_retries=3)
+def push_golden_config_to_nautobot(
+    self: "_BaseTask",
+    instance_id: str,
+    device_name: str,
+    rule_ids: list[str] | None = None,
+) -> dict:
+    """
+    Push generated golden configuration data to a Nautobot instance for the
+    specified device. Collects all golden configs from the instance's blueprint
+    rules and pushes the aggregated config.
+    """
+    return self.run_async(_push_golden_config_async(instance_id, device_name, rule_ids, self))
+
+
+async def _push_golden_config_async(
+    instance_id: str,
+    device_name: str,
+    rule_ids: list[str] | None,
+    task: "_BaseTask",
+) -> dict:
+    from sqlalchemy import select
+    from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+
+    from aegis.models.hardening_blueprint import BlueprintRule
+    from aegis.models.policy import PolicyRule
+    from aegis.models.solution_instance import SolutionInstance
+    from aegis.services.connectors.nautobot_connector import NautobotConnector, NautobotConfigError
+
+    engine = create_async_engine(settings.DATABASE_URL, echo=False)
+    SessionFactory = async_sessionmaker(engine, expire_on_commit=False)
+
+    try:
+        connector = NautobotConnector()
+    except NautobotConfigError as e:
+        return {"success": False, "error": str(e)}
+
+    # Find the device in Nautobot
+    device = connector.get_device(device_name)
+    if not device:
+        return {"success": False, "error": f"Device '{device_name}' not found in Nautobot"}
+
+    device_id = device["id"]
+
+    async with SessionFactory() as db:
+        # Get the instance's blueprint and its rules
+        inst_result = await db.execute(
+            select(SolutionInstance).where(SolutionInstance.id == uuid.UUID(instance_id))
+        )
+        instance = inst_result.scalar_one_or_none()
+        if not instance:
+            return {"success": False, "error": f"Instance {instance_id} not found"}
+
+        # Collect golden configs from blueprint rules or policy rules
+        query = (
+            select(BlueprintRule, PolicyRule)
+            .join(PolicyRule, BlueprintRule.policy_rule_id == PolicyRule.id)
+            .where(BlueprintRule.blueprint_id == instance.blueprint_id)
+            .where(PolicyRule.evaluation_method == "nautobot_golden_config")
+        )
+        if rule_ids:
+            query = query.where(BlueprintRule.id.in_([uuid.UUID(r) for r in rule_ids]))
+
+        result = await db.execute(query)
+        rows = result.all()
+
+        if not rows:
+            return {"success": False, "error": "No golden config rules found for this instance"}
+
+        # Aggregate golden config data
+        config_parts = []
+        config_format = "cli"
+        for bp_rule, pol_rule in rows:
+            # Blueprint-level override takes precedence
+            config_data = bp_rule.golden_config_data or pol_rule.golden_config_data
+            if config_data:
+                config_parts.append(f"! Rule: {pol_rule.rule_id} - {pol_rule.title}")
+                config_parts.append(config_data)
+                config_parts.append("")
+                config_format = bp_rule.golden_config_format or pol_rule.golden_config_format or "cli"
+
+        if not config_parts:
+            return {"success": False, "error": "No golden config data generated yet"}
+
+        aggregated_config = "\n".join(config_parts)
+
+    # Push to Nautobot
+    try:
+        response = connector.push_golden_config(
+            device_id=device_id,
+            intended_config=aggregated_config,
+            config_format=config_format,
+        )
+    except Exception as e:
+        return {"success": False, "error": f"Nautobot push failed: {e}"}
+
+    await engine.dispose()
+    return {"success": True, "device_id": device_id, "response": response}

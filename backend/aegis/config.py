@@ -52,5 +52,11 @@ class Settings(BaseSettings):
     # Reports directory
     REPORTS_DIR: str = "/tmp/aegis_reports"
 
+    # Nautobot integration (optional)
+    NAUTOBOT_URL: str = ""
+    NAUTOBOT_API_TOKEN: str = ""
+    NAUTOBOT_VERIFY_SSL: bool = True
+    NAUTOBOT_GOLDEN_CONFIG_REPO: str = ""
+
 
 settings = Settings()

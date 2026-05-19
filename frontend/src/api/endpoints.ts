@@ -142,3 +142,20 @@ export const dryRunInstance = (instanceId: string) =>
 export const listJobs = (instanceId: string) =>
   api.get<EnforcementJob[]>(`/instances/${instanceId}/jobs`).then((r) => r.data)
 export const deleteInstance = (instanceId: string) => api.delete(`/instances/${instanceId}`)
+export const pushToNautobot = (instanceId: string, deviceName: string, ruleIds?: string[]) =>
+  api.post<{ task_id: string; status: string }>(`/instances/${instanceId}/push-nautobot`, null, {
+    params: { device_name: deviceName, rule_ids: ruleIds?.join(',') || undefined },
+  }).then((r) => r.data)
+
+// Golden Config Generation
+export const generateGoldenConfig = (policyId: string, ruleIds?: string[], configFormat: string = 'cli') =>
+  api.post<{ task_id: string; channel: string }>(`/policies/${policyId}/generate-golden-config`, {
+    rule_ids: ruleIds ?? null,
+    config_format: configFormat,
+  }).then((r) => r.data)
+
+// Evaluation Method
+export const updateEvaluationMethod = (policyId: string, ruleId: string, evaluationMethod: 'script' | 'nautobot_golden_config') =>
+  api.patch<PolicyRule>(`/policies/${policyId}/rules/${ruleId}/evaluation-method`, {
+    evaluation_method: evaluationMethod,
+  }).then((r) => r.data)

@@ -291,3 +291,40 @@ async def delete_instance(
     await check_workspace_access(inst.workspace_id, current_user, db)
     await db.delete(inst)
     await db.commit()
+
+
+@router.post("/{instance_id}/push-nautobot", status_code=status.HTTP_202_ACCEPTED)
+async def push_to_nautobot(
+    instance_id: uuid.UUID,
+    device_name: str,
+    current_user: Annotated[User, Depends(require_role("admin", "security_officer"))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    rule_ids: list[uuid.UUID] | None = None,
+) -> dict:
+    """
+    Push aggregated golden configuration to a Nautobot device.
+    Requires NAUTOBOT_URL and NAUTOBOT_API_TOKEN to be configured.
+    """
+    from aegis.config import settings as app_settings
+
+    if not app_settings.NAUTOBOT_URL or not app_settings.NAUTOBOT_API_TOKEN:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Nautobot integration is not configured. Set NAUTOBOT_URL and NAUTOBOT_API_TOKEN.",
+        )
+
+    result = await db.execute(select(SolutionInstance).where(SolutionInstance.id == instance_id))
+    inst = result.scalar_one_or_none()
+    if inst is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instance not found")
+    await check_workspace_access(inst.workspace_id, current_user, db)
+
+    from aegis.tasks.codegen_tasks import push_golden_config_to_nautobot
+    str_rule_ids = [str(r) for r in rule_ids] if rule_ids else None
+    task = push_golden_config_to_nautobot.delay(str(instance_id), device_name, str_rule_ids)
+    return {
+        "task_id": task.id,
+        "status": "accepted",
+        "instance_id": str(instance_id),
+        "device_name": device_name,
+    }

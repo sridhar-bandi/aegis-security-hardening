@@ -37,9 +37,22 @@ class BlueprintRule(Base):
     blueprint_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("hardening_blueprints.id", ondelete="CASCADE"), nullable=False, index=True)
     policy_rule_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("policy_rules.id", ondelete="CASCADE"), nullable=False)
     component_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    # Evaluation method (inherits from PolicyRule when not overridden)
+    evaluation_method: Mapped[str] = mapped_column(
+        Enum("script", "nautobot_golden_config", name="evaluation_method", create_type=False),
+        nullable=False,
+        default="script",
+        server_default="script",
+    )
     evaluation_code: Mapped[str | None] = mapped_column(Text, nullable=True)
     remediation_code: Mapped[str | None] = mapped_column(Text, nullable=True)
     rollback_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Instance-specific golden configuration (overrides PolicyRule golden_config_data)
+    golden_config_data: Mapped[str | None] = mapped_column(Text, nullable=True)
+    golden_config_format: Mapped[str | None] = mapped_column(
+        Enum("cli", "json", name="golden_config_format", create_type=False),
+        nullable=True,
+    )
     code_status: Mapped[str] = mapped_column(
         Enum("pending", "generated", "reviewed", "approved", "rejected", name="code_status"),
         nullable=False,

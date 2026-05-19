@@ -1,0 +1,80 @@
+{
+  "version": "1.0.0",
+  "solutionName": "Small VM + iLO Solution",
+  "racks": [
+    {
+      "componentId": "rack-001",
+      "servers": [
+        {
+          "componentId": "server-001",
+          "type": "DL360",
+          "allocatedFor": "hypervisor",
+          "accessCredentials": [
+            {
+              "target": "HOST",
+              "userName": "root",
+              "password": "changeme"
+            },
+            {
+              "target": "ILO",
+              "userName": "ilo_admin",
+              "password": "changeme"
+            }
+          ],
+          "rackElevationStart": 10,
+          "rackElevationEnd": 10
+        }
+      ]
+    }
+  ],
+  "infrastructureManagement": {
+    "specificAttributes": {
+      "hypervisorCluster": {
+        "virtualMachines": [
+          {
+            "componentId": "vm-001",
+            "hostName": "app-server-01",
+            "vmName": "app-server-01",
+            "type": "Application VM",
+            "networkConnections": [
+              {
+                "networkName": "Management Network",
+                "ipAddressType": "IPv4",
+                "purpose": "Network Management",
+                "ipAddress": "10.0.1.101"
+              }
+            ],
+            "accessCredentials": [
+              {
+                "target": "HOST",
+                "userName": "admin",
+                "password": "changeme"
+              }
+            ]
+          },
+          {
+            "componentId": "vm-002",
+            "hostName": "db-server-01",
+            "vmName": "db-server-01",
+            "type": "Database VM",
+            "networkConnections": [
+              {
+                "networkName": "Management Network",
+                "ipAddressType": "IPv4",
+                "purpose": "Network Management",
+                "ipAddress": "10.0.1.102"
+              }
+            ],
+            "accessCredentials": [
+              {
+                "target": "HOST",
+                "userName": "admin",
+                "password": "changeme"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

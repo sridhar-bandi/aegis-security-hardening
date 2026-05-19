@@ -74,3 +74,56 @@ def format_few_shot(examples: list[dict]) -> str:
     for ex in examples[:3]:
         lines.append(f"Example: {ex.get('title','')}\n{ex.get('code','')[:300]}")
     return "\n\n".join(lines)
+
+
+# ── Golden Config Generation Prompts (Nautobot) ──────────────────────────────
+
+GOLDEN_CONFIG_SYSTEM = """You are an expert network and infrastructure security engineer.
+Generate golden configuration snippets that represent the compliant state for a security rule.
+The output should be a configuration fragment that can be pushed to Nautobot as the intended
+(golden) configuration for compliance checking.
+Output ONLY the configuration text, no markdown fences, no explanation."""
+
+GOLDEN_CONFIG_CLI_TEMPLATE = """Generate a CLI-format golden configuration snippet for the following security rule.
+The output should be the exact CLI commands/configuration lines that represent compliance.
+
+Rule ID: {rule_id}
+Title: {title}
+Severity: {severity}
+Component Type: {component_type}
+Description: {description}
+Check Guidance: {check_content}
+
+--- Similar rules (few-shot context) ---
+{few_shot}
+--- End few-shot context ---
+
+Requirements:
+1. Output ONLY the CLI configuration lines (one per line)
+2. These lines represent the COMPLIANT state of the device/system
+3. Be specific and use industry-standard CLI syntax for the component type
+4. Include comments (! or #) to explain each section if helpful
+
+CLI configuration:"""
+
+GOLDEN_CONFIG_JSON_TEMPLATE = """Generate a JSON-format golden configuration for the following security rule.
+The output should be a JSON object representing the compliant configuration state.
+
+Rule ID: {rule_id}
+Title: {title}
+Severity: {severity}
+Component Type: {component_type}
+Description: {description}
+Check Guidance: {check_content}
+
+--- Similar rules (few-shot context) ---
+{few_shot}
+--- End few-shot context ---
+
+Requirements:
+1. Output ONLY valid JSON (no markdown, no explanation)
+2. The JSON should represent the COMPLIANT state of the device/system
+3. Use descriptive keys that match the component type's configuration schema
+4. Include only configuration relevant to this specific security rule
+
+JSON configuration:"""

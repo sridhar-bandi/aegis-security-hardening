@@ -9,6 +9,9 @@ from aegis.services.llm.milvus_store import MilvusRuleStore
 from aegis.services.llm.prompts import (
     CODE_GEN_SYSTEM,
     EVAL_CODE_TEMPLATE,
+    GOLDEN_CONFIG_CLI_TEMPLATE,
+    GOLDEN_CONFIG_JSON_TEMPLATE,
+    GOLDEN_CONFIG_SYSTEM,
     REMEDIATION_CODE_TEMPLATE,
     ROLLBACK_CODE_TEMPLATE,
     format_few_shot,
@@ -98,3 +101,41 @@ class CodeGenerator:
         )
         async for token in self._llm.stream_generate(prompt):
             yield token
+
+    async def generate_golden_config(
+        self,
+        *,
+        rule_id: str,
+        title: str,
+        description: str,
+        severity: str,
+        component_type: str,
+        check_content: str,
+        config_format: str = "cli",
+    ) -> str:
+        """Generate a golden configuration snippet for Nautobot integration.
+
+        Args:
+            config_format: 'cli' for CLI-style config lines, 'json' for JSON object.
+        """
+        query_text = f"{title} {description}"
+        try:
+            similar = await self._store.search_similar(query_text, top_k=3)
+            few_shot_ctx = format_few_shot([
+                {"title": s.metadata.get("title", ""), "code": s.metadata.get("eval_code", "")}
+                for s in similar
+            ])
+        except Exception:
+            few_shot_ctx = "(retrieval unavailable)"
+
+        template = GOLDEN_CONFIG_CLI_TEMPLATE if config_format == "cli" else GOLDEN_CONFIG_JSON_TEMPLATE
+        prompt = GOLDEN_CONFIG_SYSTEM + "\n\n" + template.format(
+            rule_id=rule_id,
+            title=title,
+            severity=severity,
+            component_type=component_type,
+            description=description,
+            check_content=check_content,
+            few_shot=few_shot_ctx,
+        )
+        return await self._llm.generate(prompt)

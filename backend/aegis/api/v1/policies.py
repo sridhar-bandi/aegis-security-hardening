@@ -17,6 +17,8 @@ from aegis.database import get_db
 from aegis.models.policy import Policy, PolicyRule
 from aegis.models.user import User
 from aegis.schemas.policy import (
+    EvaluationMethodUpdate,
+    GoldenConfigGenRequest,
     PolicyCodeGenRequest,
     PolicyImportRequest,
     PolicyResponse,
@@ -316,3 +318,57 @@ async def import_rule_code(
     await db.commit()
     await db.refresh(rule)
     return PolicyRuleResponse.model_validate(rule)
+
+
+# --- Evaluation Method & Golden Config Endpoints ---
+
+
+@router.patch("/{policy_id}/rules/{rule_id}/evaluation-method", response_model=PolicyRuleResponse)
+async def update_evaluation_method(
+    policy_id: uuid.UUID,
+    rule_id: uuid.UUID,
+    body: EvaluationMethodUpdate,
+    current_user: Annotated[User, Depends(require_role("admin", "security_officer"))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> PolicyRuleResponse:
+    """Switch a rule's evaluation method between 'script' and 'nautobot_golden_config'."""
+    if body.evaluation_method not in ("script", "nautobot_golden_config"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="evaluation_method must be 'script' or 'nautobot_golden_config'",
+        )
+    rule = await _get_policy_rule(policy_id, rule_id, db, current_user)
+    rule.evaluation_method = body.evaluation_method
+    if body.evaluation_method == "nautobot_golden_config" and rule.golden_config_status is None:
+        rule.golden_config_status = "pending"
+    await db.commit()
+    await db.refresh(rule)
+    return PolicyRuleResponse.model_validate(rule)
+
+
+@router.post("/{policy_id}/generate-golden-config", status_code=status.HTTP_202_ACCEPTED)
+async def trigger_golden_config_generation(
+    policy_id: uuid.UUID,
+    body: GoldenConfigGenRequest,
+    current_user: Annotated[User, Depends(require_role("admin", "security_officer"))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    """
+    Trigger LLM generation of golden configuration data for rules using
+    the nautobot_golden_config evaluation method.
+    """
+    result = await db.execute(select(Policy).where(Policy.id == policy_id))
+    policy = result.scalar_one_or_none()
+    if policy is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Policy not found")
+    await check_workspace_access(policy.workspace_id, current_user, db)
+
+    from aegis.tasks.codegen_tasks import generate_golden_configs
+    str_rule_ids = [str(r) for r in body.rule_ids] if body.rule_ids else None
+    task = generate_golden_configs.delay(str(policy_id), str_rule_ids, body.config_format)
+    return {
+        "task_id": task.id,
+        "status": "accepted",
+        "policy_id": str(policy_id),
+        "channel": f"ws:golden-config:policy:{policy_id}",
+    }

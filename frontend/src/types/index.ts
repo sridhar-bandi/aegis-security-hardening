@@ -47,9 +47,13 @@ export interface PolicyRule {
   target_component_types: string[] | null
   check_content: string | null
   fix_text: string | null
+  evaluation_method: 'script' | 'nautobot_golden_config'
   evaluation_code: string | null
   remediation_code: string | null
   rollback_code: string | null
+  golden_config_data: string | null
+  golden_config_format: 'cli' | 'json' | null
+  golden_config_status: 'pending' | 'generating' | 'generated' | 'reviewed' | 'approved' | null
   code_status: 'pending' | 'generating' | 'generated' | 'reviewed' | 'approved' | 'rejected'
   code_source: 'llm' | 'manual' | 'imported'
   imported_filename: string | null
