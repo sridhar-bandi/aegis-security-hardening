@@ -47,18 +47,6 @@ export interface PolicyRule {
   target_component_types: string[] | null
   check_content: string | null
   fix_text: string | null
-  evaluation_method: 'script' | 'nautobot_golden_config'
-  evaluation_code: string | null
-  remediation_code: string | null
-  rollback_code: string | null
-  golden_config_data: string | null
-  golden_config_format: 'cli' | 'json' | null
-  golden_config_status: 'pending' | 'generating' | 'generated' | 'reviewed' | 'approved' | null
-  code_status: 'pending' | 'generating' | 'generated' | 'reviewed' | 'approved' | 'rejected'
-  code_source: 'llm' | 'manual' | 'imported'
-  imported_filename: string | null
-  reviewed_by: string | null
-  reviewed_at: string | null
   created_at: string
 }
 
@@ -71,36 +59,19 @@ export interface SolutionType {
   created_at: string
 }
 
-export interface HardeningBlueprint {
+export interface HardeningProfile {
   id: string
   name: string
   solution_type_id: string
-  component_profile_map: Record<string, string> | null
+  policy_id: string | null
+  component_policy_map: Record<string, string> | null
   status: 'draft' | 'generating' | 'ready'
   created_at: string
 }
 
-export interface PolicyProfile {
+export interface ProfileRule {
   id: string
-  policy_id: string
-  workspace_id: string
-  name: string
-  description: string | null
-  version: number
-  parent_version_id: string | null
-  profile_type: 'standard' | 'tailored'
-  status: 'draft' | 'in_review' | 'approved' | 'locked'
-  included_rule_ids: string[] | null
-  created_by: string | null
-  created_at: string
-  locked_at: string | null
-  rule_count: number
-  approved_count: number
-}
-
-export interface BlueprintRule {
-  id: string
-  blueprint_id: string
+  profile_id: string
   policy_rule_id: string
   component_type: string
   evaluation_code: string | null
@@ -116,7 +87,7 @@ export interface BlueprintRule {
 
 export interface HITLComment {
   id: string
-  blueprint_rule_id: string
+  profile_rule_id: string
   author_id: string | null
   comment_text: string
   comment_type: 'review' | 'approval' | 'rejection'
@@ -128,7 +99,7 @@ export interface SolutionInstance {
   workspace_id: string
   name: string
   solution_type_id: string | null
-  blueprint_id: string | null
+  profile_id: string | null
   owner_id: string
   created_at: string
   scid_json: Record<string, unknown> | null

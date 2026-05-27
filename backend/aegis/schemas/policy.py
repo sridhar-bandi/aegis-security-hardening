@@ -40,27 +40,7 @@ class PolicyRuleResponse(BaseModel):
     remediation_code: str | None
     rollback_code: str | None
     code_status: str
-    # Review/import tracking fields
-    code_source: str = "llm"
-    imported_filename: str | None = None
-    reviewed_by: uuid.UUID | None = None
-    reviewed_at: datetime | None = None
-    # Evaluation method and golden config fields
-    evaluation_method: str = "script"
-    golden_config_data: str | None = None
-    golden_config_format: str | None = None
-    golden_config_status: str | None = None
     created_at: datetime
-
-
-class PolicyRuleCodeUpdate(BaseModel):
-    evaluation_code: str | None = None
-    remediation_code: str | None = None
-    rollback_code: str | None = None
-
-
-class PolicyRuleRejectRequest(BaseModel):
-    reason: str | None = None
 
 
 class PolicyImportRequest(BaseModel):
@@ -73,18 +53,4 @@ class PolicyImportRequest(BaseModel):
 
 
 class PolicyCodeGenRequest(BaseModel):
-    rule_ids: list[uuid.UUID] | None = None
-
-
-class EvaluationMethodUpdate(BaseModel):
-    evaluation_method: str  # "script" | "nautobot_golden_config"
-
-
-class GoldenConfigGenRequest(BaseModel):
-    rule_ids: list[uuid.UUID] | None = None
-    config_format: str = "cli"  # "cli" | "json"
-
-
-class NautobotPushRequest(BaseModel):
-    device_name: str
     rule_ids: list[uuid.UUID] | None = None

@@ -2,11 +2,10 @@ import api from './client'
 import type {
   ComplianceReport,
   EnforcementJob,
-  HardeningBlueprint,
+  HardeningProfile,
   Policy,
   PolicyRule,
-  PolicyProfile,
-  BlueprintRule,
+  ProfileRule,
   SolutionInstance,
   SolutionType,
   TokenResponse,
@@ -45,39 +44,6 @@ export const deletePolicy = (policyId: string) => api.delete(`/policies/${policy
 export const generatePolicyCodes = (policyId: string, ruleIds?: string[]) =>
   api.post<{ task_id: string; channel: string }>(`/policies/${policyId}/generate-codes`, { rule_ids: ruleIds ?? null }).then((r) => r.data)
 
-// Policy Rule Review
-export const updatePolicyRuleCode = (policyId: string, ruleId: string, codes: Partial<Pick<PolicyRule, 'evaluation_code' | 'remediation_code' | 'rollback_code'>>) =>
-  api.patch<PolicyRule>(`/policies/${policyId}/rules/${ruleId}/code`, codes).then((r) => r.data)
-export const approvePolicyRule = (policyId: string, ruleId: string) =>
-  api.post<PolicyRule>(`/policies/${policyId}/rules/${ruleId}/approve`).then((r) => r.data)
-export const rejectPolicyRule = (policyId: string, ruleId: string, reason?: string) =>
-  api.post<PolicyRule>(`/policies/${policyId}/rules/${ruleId}/reject`, { reason }).then((r) => r.data)
-export const importPolicyRuleCode = (policyId: string, ruleId: string, codeType: string, file: File) => {
-  const form = new FormData()
-  form.append('file', file)
-  return api.post<PolicyRule>(`/policies/${policyId}/rules/${ruleId}/import`, form, {
-    params: { code_type: codeType },
-    headers: { 'Content-Type': 'multipart/form-data' },
-  }).then((r) => r.data)
-}
-
-// Policy Profiles
-export const createProfile = (policyId: string, data: { name: string; description?: string; profile_type?: string; included_rule_ids?: string[] }) =>
-  api.post<PolicyProfile>(`/profiles/policies/${policyId}/profiles`, data).then((r) => r.data)
-export const listProfiles = (policyId: string) =>
-  api.get<PolicyProfile[]>(`/profiles/policies/${policyId}/profiles`).then((r) => r.data)
-export const getProfile = (profileId: string) =>
-  api.get<PolicyProfile>(`/profiles/${profileId}`).then((r) => r.data)
-export const updateProfile = (profileId: string, data: { name?: string; description?: string; included_rule_ids?: string[] }) =>
-  api.patch<PolicyProfile>(`/profiles/${profileId}`, data).then((r) => r.data)
-export const deleteProfile = (profileId: string) => api.delete(`/profiles/${profileId}`)
-export const promoteProfile = (profileId: string) =>
-  api.post<PolicyProfile>(`/profiles/${profileId}/promote`).then((r) => r.data)
-export const newProfileVersion = (profileId: string) =>
-  api.post<PolicyProfile>(`/profiles/${profileId}/new-version`).then((r) => r.data)
-export const listLockedProfiles = (workspaceId: string) =>
-  api.get<PolicyProfile[]>(`/profiles/workspace/${workspaceId}`, { params: { status_filter: 'locked' } }).then((r) => r.data)
-
 // Solution Types
 export const listSolutionTypes = (workspaceId: string) =>
   api.get<SolutionType[]>('/solution-types', { params: { workspace_id: workspaceId } }).then((r) => r.data)
@@ -87,38 +53,38 @@ export const updateComponentSelection = (stId: string, selected_component_ids: s
   api.patch<SolutionType>(`/solution-types/${stId}/components`, { selected_component_ids }).then((r) => r.data)
 export const deleteSolutionType = (stId: string) => api.delete(`/solution-types/${stId}`)
 
-// Blueprints
-export const listBlueprints = (solutionTypeId: string) =>
-  api.get<HardeningBlueprint[]>('/blueprints', { params: { solution_type_id: solutionTypeId } }).then((r) => r.data)
-export const listAllBlueprints = (workspaceId: string) =>
-  api.get<HardeningBlueprint[]>('/blueprints', { params: { workspace_id: workspaceId } }).then((r) => r.data)
-export const createBlueprint = (name: string, solutionTypeId: string, componentProfileMap: Record<string, string>) =>
-  api.post<HardeningBlueprint>('/blueprints', { name, solution_type_id: solutionTypeId, component_profile_map: componentProfileMap }).then((r) => r.data)
-export const getBlueprint = (blueprintId: string) =>
-  api.get<HardeningBlueprint>(`/blueprints/${blueprintId}`).then((r) => r.data)
-export const listBlueprintRules = (blueprintId: string) =>
-  api.get<BlueprintRule[]>(`/blueprints/${blueprintId}/rules`).then((r) => r.data)
-export const updateRuleCode = (blueprintId: string, ruleId: string, codes: Partial<Pick<BlueprintRule, 'evaluation_code' | 'remediation_code' | 'rollback_code'>>) =>
-  api.patch<BlueprintRule>(`/blueprints/${blueprintId}/rules/${ruleId}/code`, codes).then((r) => r.data)
-export const approveRule = (blueprintId: string, ruleId: string) =>
-  api.post<BlueprintRule>(`/blueprints/${blueprintId}/rules/${ruleId}/approve`).then((r) => r.data)
-export const rejectRule = (blueprintId: string, ruleId: string) =>
-  api.post<BlueprintRule>(`/blueprints/${blueprintId}/rules/${ruleId}/reject`).then((r) => r.data)
-export const triggerCodeGen = (blueprintId: string, ruleIds?: string[]) =>
-  api.post<{ task_id: string }>(`/blueprints/${blueprintId}/generate-codes`, { rule_ids: ruleIds ?? null }).then((r) => r.data)
-export const deleteBlueprint = (blueprintId: string) => api.delete(`/blueprints/${blueprintId}`)
+// Profiles
+export const listProfiles = (solutionTypeId: string) =>
+  api.get<HardeningProfile[]>('/profiles', { params: { solution_type_id: solutionTypeId } }).then((r) => r.data)
+export const listAllProfiles = (workspaceId: string) =>
+  api.get<HardeningProfile[]>('/profiles', { params: { workspace_id: workspaceId } }).then((r) => r.data)
+export const createProfile = (name: string, solutionTypeId: string, componentPolicyMap: Record<string, string>) =>
+  api.post<HardeningProfile>('/profiles', { name, solution_type_id: solutionTypeId, component_policy_map: componentPolicyMap }).then((r) => r.data)
+export const getProfile = (profileId: string) =>
+  api.get<HardeningProfile>(`/profiles/${profileId}`).then((r) => r.data)
+export const listProfileRules = (profileId: string) =>
+  api.get<ProfileRule[]>(`/profiles/${profileId}/rules`).then((r) => r.data)
+export const updateRuleCode = (profileId: string, ruleId: string, codes: Partial<Pick<ProfileRule, 'evaluation_code' | 'remediation_code' | 'rollback_code'>>) =>
+  api.patch<ProfileRule>(`/profiles/${profileId}/rules/${ruleId}/code`, codes).then((r) => r.data)
+export const approveRule = (profileId: string, ruleId: string) =>
+  api.post<ProfileRule>(`/profiles/${profileId}/rules/${ruleId}/approve`).then((r) => r.data)
+export const rejectRule = (profileId: string, ruleId: string) =>
+  api.post<ProfileRule>(`/profiles/${profileId}/rules/${ruleId}/reject`).then((r) => r.data)
+export const triggerCodeGen = (profileId: string, ruleIds?: string[]) =>
+  api.post<{ task_id: string }>(`/profiles/${profileId}/generate-codes`, { rule_ids: ruleIds ?? null }).then((r) => r.data)
+export const deleteProfile = (profileId: string) => api.delete(`/profiles/${profileId}`)
 
 // Instances
 export const listInstances = (workspaceId: string) =>
   api.get<SolutionInstance[]>('/instances', { params: { workspace_id: workspaceId } }).then((r) => r.data)
-export const createInstance = (workspaceId: string, name: string, solutionTypeId?: string, blueprintId?: string) =>
-  api.post<SolutionInstance>('/instances', { workspace_id: workspaceId, name, solution_type_id: solutionTypeId, blueprint_id: blueprintId }).then((r) => r.data)
-export const createInstanceWithScid = (workspaceId: string, name: string, scidFile?: File, solutionTypeId?: string, blueprintId?: string) => {
+export const createInstance = (workspaceId: string, name: string, solutionTypeId?: string, profileId?: string) =>
+  api.post<SolutionInstance>('/instances', { workspace_id: workspaceId, name, solution_type_id: solutionTypeId, profile_id: profileId }).then((r) => r.data)
+export const createInstanceWithScid = (workspaceId: string, name: string, scidFile?: File, solutionTypeId?: string, profileId?: string) => {
   const form = new FormData()
   form.append('workspace_id', workspaceId)
   form.append('name', name)
   if (solutionTypeId) form.append('solution_type_id', solutionTypeId)
-  if (blueprintId) form.append('blueprint_id', blueprintId)
+  if (profileId) form.append('profile_id', profileId)
   if (scidFile) form.append('scid_file', scidFile)
   return api.post<SolutionInstance>('/instances/upload', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
@@ -142,20 +108,3 @@ export const dryRunInstance = (instanceId: string) =>
 export const listJobs = (instanceId: string) =>
   api.get<EnforcementJob[]>(`/instances/${instanceId}/jobs`).then((r) => r.data)
 export const deleteInstance = (instanceId: string) => api.delete(`/instances/${instanceId}`)
-export const pushToNautobot = (instanceId: string, deviceName: string, ruleIds?: string[]) =>
-  api.post<{ task_id: string; status: string }>(`/instances/${instanceId}/push-nautobot`, null, {
-    params: { device_name: deviceName, rule_ids: ruleIds?.join(',') || undefined },
-  }).then((r) => r.data)
-
-// Golden Config Generation
-export const generateGoldenConfig = (policyId: string, ruleIds?: string[], configFormat: string = 'cli') =>
-  api.post<{ task_id: string; channel: string }>(`/policies/${policyId}/generate-golden-config`, {
-    rule_ids: ruleIds ?? null,
-    config_format: configFormat,
-  }).then((r) => r.data)
-
-// Evaluation Method
-export const updateEvaluationMethod = (policyId: string, ruleId: string, evaluationMethod: 'script' | 'nautobot_golden_config') =>
-  api.patch<PolicyRule>(`/policies/${policyId}/rules/${ruleId}/evaluation-method`, {
-    evaluation_method: evaluationMethod,
-  }).then((r) => r.data)

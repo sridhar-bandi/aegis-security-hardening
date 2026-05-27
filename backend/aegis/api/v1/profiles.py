@@ -1,294 +1,279 @@
-"""Profiles router — CRUD and lifecycle for policy profiles."""
+"""Hardening Profiles router — HITL review, code gen trigger."""
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aegis.database import get_db
-from aegis.models.policy import Policy, PolicyRule
-from aegis.models.policy_profile import PolicyProfile
+from aegis.models.hardening_profile import HardeningProfile, HITLComment, ProfileRule
+from aegis.models.policy import PolicyRule
+from aegis.models.solution_type import SolutionType
 from aegis.models.user import User
-from aegis.schemas.profile import PolicyProfileCreate, PolicyProfileResponse, PolicyProfileUpdate
+from aegis.schemas.profile import (
+    CodeGenRequest,
+    HardeningProfileCreate,
+    HardeningProfileResponse,
+    HITLCommentCreate,
+    HITLCommentResponse,
+    ProfileRuleCodeUpdate,
+    ProfileRuleResponse,
+)
 from aegis.services.rbac import check_workspace_access, get_current_user, require_role
 
 router = APIRouter(prefix="/profiles", tags=["profiles"])
 
 
-# --- Helper ---
-
-async def _compute_profile_counts(profile: PolicyProfile, db: AsyncSession) -> tuple[int, int]:
-    """Compute (rule_count, approved_count) for a profile."""
-    if profile.included_rule_ids:
-        rule_ids = [uuid.UUID(rid) for rid in profile.included_rule_ids]
-        result = await db.execute(
-            select(PolicyRule.id, PolicyRule.code_status).where(PolicyRule.id.in_(rule_ids))
-        )
-    else:
-        # Standard profile — all rules in the policy
-        result = await db.execute(
-            select(PolicyRule.id, PolicyRule.code_status).where(PolicyRule.policy_id == profile.policy_id)
-        )
-    rows = result.all()
-    rule_count = len(rows)
-    approved_count = sum(1 for r in rows if r.code_status == "approved")
-    return rule_count, approved_count
-
-
-def _profile_response(profile: PolicyProfile, rule_count: int, approved_count: int) -> PolicyProfileResponse:
-    data = PolicyProfileResponse.model_validate(profile)
-    data.rule_count = rule_count
-    data.approved_count = approved_count
-    return data
-
-
-# --- Workspace-level endpoints ---
-
-
-@router.get("/workspace/{workspace_id}", response_model=list[PolicyProfileResponse])
-async def list_workspace_profiles(
-    workspace_id: uuid.UUID,
+@router.get("", response_model=list[HardeningProfileResponse])
+async def list_profiles(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    status_filter: str | None = None,
-) -> list[PolicyProfileResponse]:
-    """List profiles in a workspace, optionally filtered by status."""
-    await check_workspace_access(workspace_id, current_user, db)
-    query = select(PolicyProfile).where(PolicyProfile.workspace_id == workspace_id)
-    if status_filter:
-        query = query.where(PolicyProfile.status == status_filter)
-    query = query.order_by(PolicyProfile.name)
-    profiles_result = await db.execute(query)
-    profiles = profiles_result.scalars().all()
-    out = []
-    for p in profiles:
-        rule_count, approved_count = await _compute_profile_counts(p, db)
-        out.append(_profile_response(p, rule_count, approved_count))
-    return out
+    solution_type_id: uuid.UUID | None = None,
+    workspace_id: uuid.UUID | None = None,
+) -> list[HardeningProfileResponse]:
+    """List hardening profiles filtered by solution_type_id or workspace_id."""
+    if solution_type_id is not None:
+        st_result = await db.execute(select(SolutionType).where(SolutionType.id == solution_type_id))
+        st = st_result.scalar_one_or_none()
+        if st is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SolutionType not found")
+        await check_workspace_access(st.workspace_id, current_user, db)
+        result = await db.execute(
+            select(HardeningProfile)
+            .where(HardeningProfile.solution_type_id == solution_type_id)
+            .order_by(HardeningProfile.name)
+        )
+    elif workspace_id is not None:
+        await check_workspace_access(workspace_id, current_user, db)
+        result = await db.execute(
+            select(HardeningProfile)
+            .join(SolutionType, HardeningProfile.solution_type_id == SolutionType.id)
+            .where(SolutionType.workspace_id == workspace_id)
+            .order_by(HardeningProfile.name)
+        )
+    else:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Provide solution_type_id or workspace_id")
+    return [HardeningProfileResponse.model_validate(p) for p in result.scalars().all()]
 
 
-# --- Policy-scoped endpoints (create / list) ---
-
-
-@router.post("/policies/{policy_id}/profiles", response_model=PolicyProfileResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=HardeningProfileResponse, status_code=status.HTTP_201_CREATED)
 async def create_profile(
-    policy_id: uuid.UUID,
-    body: PolicyProfileCreate,
+    body: HardeningProfileCreate,
     current_user: Annotated[User, Depends(require_role("admin", "security_officer"))],
     db: Annotated[AsyncSession, Depends(get_db)],
-) -> PolicyProfileResponse:
-    """Create a new policy profile (standard or tailored)."""
-    result = await db.execute(select(Policy).where(Policy.id == policy_id))
-    policy = result.scalar_one_or_none()
-    if policy is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Policy not found")
-    await check_workspace_access(policy.workspace_id, current_user, db)
+) -> HardeningProfileResponse:
+    # Verify SolutionType exists and user has access
+    st_result = await db.execute(select(SolutionType).where(SolutionType.id == body.solution_type_id))
+    st = st_result.scalar_one_or_none()
+    if st is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SolutionType not found")
+    await check_workspace_access(st.workspace_id, current_user, db)
 
-    included_rule_ids = None
-    if body.profile_type == "tailored":
-        if not body.included_rule_ids:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Tailored profiles require included_rule_ids",
-            )
-        # Validate all rule IDs belong to this policy
-        rule_result = await db.execute(
-            select(PolicyRule.id).where(
-                PolicyRule.policy_id == policy_id,
-                PolicyRule.id.in_(body.included_rule_ids),
-            )
+    # Validate that every component in the solution type has a policy assigned
+    components = st.component_selection or []
+    missing = [c for c in components if c not in body.component_policy_map]
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"No policy mapped for component(s): {', '.join(missing)}",
         )
-        found_ids = {r.id for r in rule_result.all()}
-        missing = set(body.included_rule_ids) - found_ids
-        if missing:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Rule IDs not found in policy: {[str(m) for m in missing]}",
-            )
-        included_rule_ids = [str(rid) for rid in body.included_rule_ids]
 
-    profile = PolicyProfile(
+    # Serialize map: UUID values → str for JSON storage
+    cpm_serialized = {k: str(v) for k, v in body.component_policy_map.items()}
+
+    profile = HardeningProfile(
         id=uuid.uuid4(),
-        policy_id=policy_id,
-        workspace_id=policy.workspace_id,
         name=body.name,
-        description=body.description,
-        profile_type=body.profile_type,
-        included_rule_ids=included_rule_ids,
+        solution_type_id=body.solution_type_id,
+        component_policy_map=cpm_serialized,
         created_by=current_user.id,
     )
     db.add(profile)
+    await db.flush()
+
+    # Create ProfileRules: for each component, use its mapped policy's rules
+    if components:
+        for component_id in components:
+            policy_id = body.component_policy_map[component_id]
+            rules_result = await db.execute(
+                select(PolicyRule).where(PolicyRule.policy_id == policy_id)
+            )
+            policy_rules = rules_result.scalars().all()
+            for pr in policy_rules:
+                db.add(ProfileRule(
+                    id=uuid.uuid4(),
+                    profile_id=profile.id,
+                    policy_rule_id=pr.id,
+                    component_type=component_id,
+                    code_status="pending",
+                    risk_score=5.0,
+                ))
+
     await db.commit()
     await db.refresh(profile)
-    rule_count, approved_count = await _compute_profile_counts(profile, db)
-    return _profile_response(profile, rule_count, approved_count)
+    return HardeningProfileResponse.model_validate(profile)
 
 
-@router.get("/policies/{policy_id}/profiles", response_model=list[PolicyProfileResponse])
-async def list_profiles(
-    policy_id: uuid.UUID,
-    current_user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-) -> list[PolicyProfileResponse]:
-    """List all profiles for a policy."""
-    result = await db.execute(select(Policy).where(Policy.id == policy_id))
-    policy = result.scalar_one_or_none()
-    if policy is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Policy not found")
-    await check_workspace_access(policy.workspace_id, current_user, db)
-
-    profiles_result = await db.execute(
-        select(PolicyProfile).where(PolicyProfile.policy_id == policy_id).order_by(PolicyProfile.name)
-    )
-    profiles = profiles_result.scalars().all()
-    out = []
-    for p in profiles:
-        rule_count, approved_count = await _compute_profile_counts(p, db)
-        out.append(_profile_response(p, rule_count, approved_count))
-    return out
-
-
-# --- Profile-specific endpoints ---
-
-
-@router.get("/{profile_id}", response_model=PolicyProfileResponse)
+@router.get("/{profile_id}", response_model=HardeningProfileResponse)
 async def get_profile(
     profile_id: uuid.UUID,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
-) -> PolicyProfileResponse:
-    """Get a single profile by ID."""
-    result = await db.execute(select(PolicyProfile).where(PolicyProfile.id == profile_id))
+) -> HardeningProfileResponse:
+    result = await db.execute(select(HardeningProfile).where(HardeningProfile.id == profile_id))
     profile = result.scalar_one_or_none()
     if profile is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
-    await check_workspace_access(profile.workspace_id, current_user, db)
-    rule_count, approved_count = await _compute_profile_counts(profile, db)
-    return _profile_response(profile, rule_count, approved_count)
+    st_result = await db.execute(select(SolutionType).where(SolutionType.id == profile.solution_type_id))
+    st = st_result.scalar_one_or_none()
+    if st:
+        await check_workspace_access(st.workspace_id, current_user, db)
+    return HardeningProfileResponse.model_validate(profile)
 
 
-@router.patch("/{profile_id}", response_model=PolicyProfileResponse)
-async def update_profile(
+@router.get("/{profile_id}/rules", response_model=list[ProfileRuleResponse])
+async def list_profile_rules(
     profile_id: uuid.UUID,
-    body: PolicyProfileUpdate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> list[ProfileRuleResponse]:
+    from sqlalchemy.orm import selectinload
+    result = await db.execute(
+        select(ProfileRule)
+        .options(selectinload(ProfileRule.policy_rule))
+        .where(ProfileRule.profile_id == profile_id)
+        .order_by(ProfileRule.component_type, ProfileRule.created_at)
+    )
+    rows = result.scalars().all()
+    out = []
+    for r in rows:
+        data = ProfileRuleResponse.model_validate(r)
+        if r.policy_rule is not None:
+            data.rule_title = r.policy_rule.title
+            data.rule_short_id = r.policy_rule.rule_id
+        out.append(data)
+    return out
+
+
+@router.patch("/{profile_id}/rules/{rule_id}/code", response_model=ProfileRuleResponse)
+async def update_rule_code(
+    profile_id: uuid.UUID,
+    rule_id: uuid.UUID,
+    body: ProfileRuleCodeUpdate,
     current_user: Annotated[User, Depends(require_role("admin", "security_officer"))],
     db: Annotated[AsyncSession, Depends(get_db)],
-) -> PolicyProfileResponse:
-    """Update a draft profile."""
-    result = await db.execute(select(PolicyProfile).where(PolicyProfile.id == profile_id))
-    profile = result.scalar_one_or_none()
-    if profile is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
-    await check_workspace_access(profile.workspace_id, current_user, db)
-    if profile.status != "draft":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Only draft profiles can be modified")
-    if body.name is not None:
-        profile.name = body.name
-    if body.description is not None:
-        profile.description = body.description
-    if body.included_rule_ids is not None:
-        # Validate rule IDs
-        rule_result = await db.execute(
-            select(PolicyRule.id).where(
-                PolicyRule.policy_id == profile.policy_id,
-                PolicyRule.id.in_(body.included_rule_ids),
-            )
-        )
-        found_ids = {r.id for r in rule_result.all()}
-        missing = set(body.included_rule_ids) - found_ids
-        if missing:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Rule IDs not found in policy: {[str(m) for m in missing]}",
-            )
-        profile.included_rule_ids = [str(rid) for rid in body.included_rule_ids]
+) -> ProfileRuleResponse:
+    result = await db.execute(
+        select(ProfileRule).where(ProfileRule.id == rule_id, ProfileRule.profile_id == profile_id)
+    )
+    pr = result.scalar_one_or_none()
+    if pr is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ProfileRule not found")
+    if body.evaluation_code is not None:
+        pr.evaluation_code = body.evaluation_code
+    if body.remediation_code is not None:
+        pr.remediation_code = body.remediation_code
+    if body.rollback_code is not None:
+        pr.rollback_code = body.rollback_code
+    pr.code_status = "reviewed"
     await db.commit()
-    await db.refresh(profile)
-    rule_count, approved_count = await _compute_profile_counts(profile, db)
-    return _profile_response(profile, rule_count, approved_count)
+    await db.refresh(pr)
+    return ProfileRuleResponse.model_validate(pr)
 
 
-@router.delete("/{profile_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+@router.post("/{profile_id}/rules/{rule_id}/approve", response_model=ProfileRuleResponse)
+async def approve_rule(
+    profile_id: uuid.UUID,
+    rule_id: uuid.UUID,
+    current_user: Annotated[User, Depends(require_role("admin", "security_officer"))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ProfileRuleResponse:
+    result = await db.execute(
+        select(ProfileRule).where(ProfileRule.id == rule_id, ProfileRule.profile_id == profile_id)
+    )
+    pr = result.scalar_one_or_none()
+    if pr is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ProfileRule not found")
+    pr.code_status = "approved"
+    await db.commit()
+    await db.refresh(pr)
+    return ProfileRuleResponse.model_validate(pr)
+
+
+@router.post("/{profile_id}/rules/{rule_id}/reject", response_model=ProfileRuleResponse)
+async def reject_rule(
+    profile_id: uuid.UUID,
+    rule_id: uuid.UUID,
+    current_user: Annotated[User, Depends(require_role("admin", "security_officer"))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ProfileRuleResponse:
+    result = await db.execute(
+        select(ProfileRule).where(ProfileRule.id == rule_id, ProfileRule.profile_id == profile_id)
+    )
+    pr = result.scalar_one_or_none()
+    if pr is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ProfileRule not found")
+    pr.code_status = "rejected"
+    await db.commit()
+    await db.refresh(pr)
+    return ProfileRuleResponse.model_validate(pr)
+
+
+@router.post("/{profile_id}/rules/{rule_id}/comments", response_model=HITLCommentResponse, status_code=status.HTTP_201_CREATED)
+async def add_comment(
+    profile_id: uuid.UUID,
+    rule_id: uuid.UUID,
+    body: HITLCommentCreate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> HITLCommentResponse:
+    result = await db.execute(
+        select(ProfileRule).where(ProfileRule.id == rule_id, ProfileRule.profile_id == profile_id)
+    )
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ProfileRule not found")
+    comment = HITLComment(
+        id=uuid.uuid4(),
+        profile_rule_id=rule_id,
+        author_id=current_user.id,
+        comment_text=body.comment_text,
+        comment_type=body.comment_type,
+    )
+    db.add(comment)
+    await db.commit()
+    await db.refresh(comment)
+    return HITLCommentResponse.model_validate(comment)
+
+
+@router.post("/{profile_id}/generate-codes", status_code=status.HTTP_202_ACCEPTED)
+async def trigger_code_generation(
+    profile_id: uuid.UUID,
+    body: CodeGenRequest,
+    current_user: Annotated[User, Depends(require_role("admin", "security_officer"))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    from aegis.tasks.codegen_tasks import generate_profile_codes
+    rule_ids = [str(r) for r in body.rule_ids] if body.rule_ids else None
+    task = generate_profile_codes.delay(str(profile_id), rule_ids)
+    return {"task_id": task.id, "status": "accepted", "profile_id": str(profile_id)}
+
+
+@router.delete("/{profile_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_profile(
     profile_id: uuid.UUID,
     current_user: Annotated[User, Depends(require_role("admin", "security_officer"))],
     db: Annotated[AsyncSession, Depends(get_db)],
-):
-    """Delete a profile (draft or locked)."""
-    result = await db.execute(select(PolicyProfile).where(PolicyProfile.id == profile_id))
+) -> None:
+    result = await db.execute(select(HardeningProfile).where(HardeningProfile.id == profile_id))
     profile = result.scalar_one_or_none()
     if profile is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
-    await check_workspace_access(profile.workspace_id, current_user, db)
-    if profile.status not in ("draft", "locked"):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Only draft or locked profiles can be deleted")
+    st_result = await db.execute(select(SolutionType).where(SolutionType.id == profile.solution_type_id))
+    st = st_result.scalar_one_or_none()
+    if st:
+        await check_workspace_access(st.workspace_id, current_user, db)
     await db.delete(profile)
     await db.commit()
-
-
-@router.post("/{profile_id}/promote", response_model=PolicyProfileResponse)
-async def promote_profile(
-    profile_id: uuid.UUID,
-    current_user: Annotated[User, Depends(require_role("admin", "security_officer"))],
-    db: Annotated[AsyncSession, Depends(get_db)],
-) -> PolicyProfileResponse:
-    """Lock a profile — all included rules must be approved."""
-    result = await db.execute(select(PolicyProfile).where(PolicyProfile.id == profile_id))
-    profile = result.scalar_one_or_none()
-    if profile is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
-    await check_workspace_access(profile.workspace_id, current_user, db)
-    if profile.status == "locked":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Profile is already locked")
-
-    rule_count, approved_count = await _compute_profile_counts(profile, db)
-    if approved_count < rule_count:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"{rule_count - approved_count} rule(s) are not approved. All rules must be approved before promotion.",
-        )
-
-    profile.status = "locked"
-    profile.locked_at = datetime.now(timezone.utc)
-    await db.commit()
-    await db.refresh(profile)
-    return _profile_response(profile, rule_count, approved_count)
-
-
-@router.post("/{profile_id}/new-version", response_model=PolicyProfileResponse, status_code=status.HTTP_201_CREATED)
-async def new_profile_version(
-    profile_id: uuid.UUID,
-    current_user: Annotated[User, Depends(require_role("admin", "security_officer"))],
-    db: Annotated[AsyncSession, Depends(get_db)],
-) -> PolicyProfileResponse:
-    """Create a new draft version from a locked profile."""
-    result = await db.execute(select(PolicyProfile).where(PolicyProfile.id == profile_id))
-    profile = result.scalar_one_or_none()
-    if profile is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
-    await check_workspace_access(profile.workspace_id, current_user, db)
-    if profile.status != "locked":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Only locked profiles can be versioned")
-
-    new_profile = PolicyProfile(
-        id=uuid.uuid4(),
-        policy_id=profile.policy_id,
-        workspace_id=profile.workspace_id,
-        name=f"{profile.name} v{profile.version + 1}",
-        description=profile.description,
-        version=profile.version + 1,
-        parent_version_id=profile.id,
-        profile_type=profile.profile_type,
-        included_rule_ids=profile.included_rule_ids,
-        created_by=current_user.id,
-    )
-    db.add(new_profile)
-    await db.commit()
-    await db.refresh(new_profile)
-    rule_count, approved_count = await _compute_profile_counts(new_profile, db)
-    return _profile_response(new_profile, rule_count, approved_count)

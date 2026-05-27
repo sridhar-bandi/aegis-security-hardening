@@ -1,6 +1,6 @@
 # AEGIS — AI Agentic Security Hardening
 
-AEGIS is an AI-driven security hardening platform for HPE Private Cloud solutions (PCE, PCAI). It ingests industry-standard security policies (OVAL, XCCDF), uses an LLM to generate evaluate/remediate/rollback code for each rule, and then executes enforcement operations against live infrastructure endpoints — all through a browser-based UI with real-time progress updates.
+AEGIS is an AI-driven security hardening platform for HPE Private Cloud solutions (PCE, PCAI). It ingests industry-standard security policies (OVAL, XCCDF, JSON), uses an LLM to generate evaluate/remediate/rollback code for each rule, and then executes enforcement operations against live infrastructure endpoints — all through a browser-based UI with real-time progress updates.
 
 ---
 
@@ -19,6 +19,8 @@ AEGIS is an AI-driven security hardening platform for HPE Private Cloud solution
 - [LLM Configuration](#llm-configuration)
 - [Project Structure](#project-structure)
 - [Running Tests](#running-tests)
+- [CIS Ubuntu Test Target](#cis-ubuntu-test-target)
+- [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -60,7 +62,7 @@ AEGIS is an AI-driven security hardening platform for HPE Private Cloud solution
 
 | Feature | Description |
 |---|---|
-| **Policy Import** | Upload OVAL, XCCDF, or plain-text policy files; rules are parsed and stored per workspace |
+| **Policy Import** | Upload OVAL, XCCDF, JSON, or plain-text policy files; rules are parsed and stored per workspace |
 | **AI Code Generation** | LLM generates `evaluate`, `remediate`, and `rollback` Python snippets for each policy rule using RAG (Milvus vector store) |
 | **Policy Profiles** | Create standard (all rules) or tailored (selected rules) profiles from a policy; customize rule selection, promote to locked state for deployment |
 | **Rule Review Workflow** | Approve, reject, or import implementation code for individual rules; view code status across the profile |
@@ -70,10 +72,15 @@ AEGIS is an AI-driven security hardening platform for HPE Private Cloud solution
 | **Instance Manager** | Register live infrastructure instances and associate them with a hardening blueprint |
 | **Enforcement Console** | Run evaluate, dry-run, remediate, or rollback against an instance; stream real-time status via WebSocket |
 | **Compliance Dashboard** | Aggregated pass/fail compliance reports per instance |
+| **ARF Report Generation** | Generate OpenSCAP-compatible Asset Reporting Format (ARF 1.1) XML reports for compliance auditing |
+| **HTML Reports** | Rendered HTML compliance reports for human-readable review |
+| **Impact Assessment** | NetworkX-based communication channel analysis between components; TLS risk scoring and remediation impact modeling |
 | **User Management** | Full RBAC with four roles; workspace-scoped access control |
 | **Vault Integration** | Credential references in endpoint configs resolved at runtime from HashiCorp Vault |
 | **Nautobot Golden Config** | Alternative data-driven evaluation method — LLM generates intended device configuration (CLI/JSON) and pushes to Nautobot for continuous drift monitoring |
 | **Solution Type Upload** | Import solution type definitions from JSON files describing racks, servers, VMs, and network topology |
+
+> **Note:** The Nautobot Golden Config integration and the live enforcement mode (evaluate/remediate/rollback against real infrastructure) are not yet fully tested in production environments. Use with caution and validate in a staging setup first.
 
 ---
 
@@ -81,15 +88,16 @@ AEGIS is an AI-driven security hardening platform for HPE Private Cloud solution
 
 | Layer | Technology |
 |---|---|
-| Frontend | React 18, TypeScript, Vite, TailwindCSS, React Router |
-| Backend API | Python 3.11+, FastAPI, Uvicorn, SQLAlchemy (async), Alembic |
+| Frontend | React 18, TypeScript, Vite, TailwindCSS, React Router, React Query, Recharts, ReactFlow |
+| Backend API | Python 3.11+, FastAPI, Uvicorn, SQLAlchemy (async), Alembic, LangChain |
 | Database | PostgreSQL 16 |
 | Task Queue | Celery 5, Redis 7 |
 | Vector Store | Milvus 2.4 (backed by etcd + MinIO) |
 | LLM | OpenAI-compatible API **or** Ollama (local) |
-| Embeddings | OpenAI `text-embedding-3-small`, HuggingFace, or Ollama `nomic-embed-text` |
+| Embeddings | OpenAI `text-embedding-3-small`, HuggingFace (`sentence-transformers`), or Ollama `nomic-embed-text` |
+| Graph Analysis | NetworkX (impact assessment / channel risk scoring) |
 | Auth | JWT (HS256) via `python-jose`, bcrypt passwords |
-| Connectors | Paramiko (SSH), Netmiko, `kubernetes` Python client, Redfish/pyVmomi, hvac (Vault) |
+| Connectors | Paramiko (SSH), Netmiko, `kubernetes` Python client, Redfish/pyVmomi, hvac (Vault), Nautobot REST |
 | Container | Docker, Docker Compose |
 
 ---
@@ -192,6 +200,14 @@ Copy `.env.example` to `.env` and set the following values:
 | `NAUTOBOT_API_TOKEN` | Nautobot REST API token (optional) | `""` |
 | `NAUTOBOT_VERIFY_SSL` | Verify SSL for Nautobot connections | `true` |
 | `NAUTOBOT_GOLDEN_CONFIG_REPO` | Git repo URL for Nautobot intended configs (optional) | `""` |
+| `OLLAMA_BASE_URL` | Base URL for the local Ollama service | `http://localhost:11434` |
+| `HUGGINGFACE_EMBEDDING_MODEL` | HuggingFace embedding model name (when `EMBEDDING_PROVIDER=huggingface`) | `all-MiniLM-L6-v2` |
+| `DATABASE_URL` | Full PostgreSQL connection URI (for local dev without Docker) | `postgresql+asyncpg://aegis:aegis@localhost/aegis` |
+| `REDIS_URL` | Full Redis connection URI (for local dev without Docker) | `redis://:redis@localhost:6379/0` |
+| `MILVUS_HOST` | MilvusDB hostname | `localhost` |
+| `MILVUS_PORT` | MilvusDB port | `19530` |
+| `CORS_ORIGINS` | JSON array of allowed CORS origins | `["http://localhost:3000","http://localhost:5173"]` |
+| `REPORTS_DIR` | Directory for generated compliance reports | `/tmp/aegis_reports` |
 
 ---
 
@@ -239,6 +255,16 @@ AEGIS connects to target infrastructure using pluggable connectors selected by t
 | HashiCorp Vault | `vault` | `hvac` (credential resolver) |
 | Nautobot | `nautobot` | REST API via `requests` (Golden Config push) |
 
+The connector factory also supports automatic mapping via component name prefixes:
+
+| Prefix | Resolved Connector |
+|---|---|
+| `VM`, `Server`, `Linux` | SSH |
+| `iLO`, `BIOS`, `Redfish`, `SRController` | Redfish |
+| `Aruba`, `Switch` | Netmiko |
+| `Kubernetes`, `K8s` | Kubernetes |
+| `Vault` | Vault |
+
 Credential references in endpoint configs follow the `vault://secret/path#key` syntax and are resolved at evaluation time.
 
 ---
@@ -283,11 +309,11 @@ Aegis-SecurityHardening/
 │   │   ├── models/           # SQLAlchemy ORM models
 │   │   ├── schemas/          # Pydantic request/response schemas
 │   │   ├── services/
-│   │   │   ├── connectors/   # SSH, Netmiko, K8s, Redfish, Vault, Nautobot
-│   │   │   ├── enforcement/  # Evaluator, remediator, rollback, dry-run
-│   │   │   ├── llm/          # LLM client, code generator, Milvus store
-│   │   │   ├── policy_parser/# OVAL, XCCDF, text parsers
-│   │   │   ├── reporting/    # Compliance report generation
+│   │   │   ├── connectors/   # SSH, Netmiko, K8s, Redfish, Vault, Nautobot + factory
+│   │   │   ├── enforcement/  # Evaluator, remediator, rollback, dry-run, impact assessor
+│   │   │   ├── llm/          # LLM client, code generator, Milvus store, prompt templates
+│   │   │   ├── policy_parser/# OVAL, XCCDF, JSON, text parsers
+│   │   │   ├── reporting/    # ARF XML generator, HTML reports
 │   │   │   └── rbac.py       # JWT auth + role-based access control
 │   │   ├── tasks/            # Celery tasks (codegen, enforcement)
 │   │   ├── config.py         # Pydantic settings
@@ -302,7 +328,8 @@ Aegis-SecurityHardening/
 │       ├── components/       # Feature UI components
 │       ├── context/          # AuthContext, WorkspaceContext
 │       ├── pages/            # Top-level page components
-│       │   ├── DashboardPage
+│       │   ├── LoginPage                 # Authentication / login form
+│       │   ├── DashboardPage             # Compliance overview with Recharts
 │       │   ├── PolicyManagerPage         # Policy import, profiles, rule overview
 │       │   ├── PolicyImplementationEditorPage  # Monaco code editor for rule review
 │       │   ├── SolutionTypeBuilderPage   # Solution type definition + JSON upload
@@ -313,12 +340,13 @@ Aegis-SecurityHardening/
 │       │   └── UserManagementPage
 │       └── types/            # TypeScript type definitions
 ├── projects/
+│   ├── cis-ubuntu-target/    # Simulated Ubuntu 22.04 for CIS benchmark testing
 │   ├── PCAI/scid/            # HPE PCAI infrastructure layout definitions
 │   ├── sample-policies/      # Sample CIS/HPE policy JSON files + seed script
 │   └── sample-solution-type-upload.json  # Example solution type import file
 ├── scripts/
 │   └── restart-docker.ps1    # Helper script to restart Docker services
-├── docker-compose.yml        # Production stack
+├── docker-compose.yml        # Production stack (includes CIS Ubuntu test target)
 ├── docker-compose.dev.yml    # Development overrides (hot-reload)
 └── .env.example              # Environment variable template
 ```
@@ -344,3 +372,60 @@ pytest tests/test_enforcement.py
 ```
 
 Test configuration is in `backend/pytest.ini`. Async tests use `pytest-asyncio`.
+
+Available test modules:
+
+| Test File | Coverage Area |
+|---|---|
+| `test_rbac.py` | JWT auth, role-based access, workspace scoping |
+| `test_enforcement.py` | Evaluate, remediate, rollback, dry-run pipelines |
+| `test_policy_parsers.py` | OVAL, XCCDF, JSON, and text policy parsing |
+| `test_connector_factory.py` | Connector dispatch by component_type |
+| `test_nautobot_connector.py` | Nautobot Golden Config integration |
+| `test_golden_config_gen.py` | LLM-driven golden config generation |
+
+---
+
+## CIS Ubuntu Test Target
+
+The Docker Compose stack includes a **simulated Ubuntu 22.04 target** (`cis-ubuntu-target`) for end-to-end testing of the CIS benchmark hardening pipeline without touching real infrastructure.
+
+### How it works
+
+- A lightweight container exposes SSH on port **2222** (mapped from container port 22)
+- A JSON state file (`/aegis-state/state.json`) simulates system configuration
+- Mock shell commands (`findmnt`, `dpkg`, `sysctl`, `systemctl`, `sshd`, `apparmor_status`) read/write from the state file
+- Aegis can safely run `evaluate` → `remediate` → `rollback` against this target
+
+### Credentials
+
+| Field | Value |
+|---|---|
+| Host | `cis-ubuntu-target` (Docker network) or `localhost:2222` (host) |
+| Username | `aegis-test` |
+| Password | `aegistest123` |
+
+### Seeding the test instance
+
+After starting the stack, register the test target in Aegis:
+
+```bash
+cd projects/cis-ubuntu-target/seed
+pip install requests
+python seed_instance.py --password <admin-password>
+```
+
+This creates a solution instance and associates it with the 10-rule CIS Ubuntu 22.04 hardening profile included in `hardening_profile.json`.
+
+---
+
+## Troubleshooting
+
+| Issue | Resolution |
+|---|---|
+| `alembic upgrade head` fails with connection error | Ensure PostgreSQL is healthy: `docker compose ps postgres` |
+| Milvus fails to start | Check that etcd and MinIO are healthy first; Milvus depends on both |
+| LLM code generation returns empty | Verify `OPENAI_API_BASE` and `OPENAI_API_KEY` (or Ollama is running on `OLLAMA_BASE_URL`) |
+| Frontend can't reach API | Set `VITE_API_URL=http://localhost:8000` in `.env` and restart the dev server |
+| WebSocket disconnects immediately | Confirm Redis is running and `REDIS_URL` is correct |
+| `cis-ubuntu-target` SSH refused | Wait for healthcheck to pass: `docker compose ps cis-ubuntu-target` |

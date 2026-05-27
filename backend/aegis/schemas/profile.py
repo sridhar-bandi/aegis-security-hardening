@@ -1,38 +1,70 @@
-"""Profile schemas."""
+"""Hardening profile schemas."""
 from __future__ import annotations
 import uuid
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
 
-class PolicyProfileCreate(BaseModel):
+class HardeningProfileCreate(BaseModel):
     name: str
-    description: str | None = None
-    profile_type: str = "standard"  # "standard" | "tailored"
-    included_rule_ids: list[uuid.UUID] | None = None  # required if tailored
+    solution_type_id: uuid.UUID
+    # Maps each component_type (string) to the policy_id (UUID) that governs it.
+    # e.g. {"server": "<policy-uuid>", "network_switch": "<policy-uuid>"}
+    component_policy_map: dict[str, uuid.UUID]
 
 
-class PolicyProfileUpdate(BaseModel):
-    name: str | None = None
-    description: str | None = None
-    included_rule_ids: list[uuid.UUID] | None = None
-
-
-class PolicyProfileResponse(BaseModel):
+class HardeningProfileResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    policy_id: uuid.UUID
-    workspace_id: uuid.UUID
     name: str
-    description: str | None
-    version: int
-    parent_version_id: uuid.UUID | None
-    profile_type: str
+    solution_type_id: uuid.UUID
+    policy_id: uuid.UUID | None
+    component_policy_map: dict | None
     status: str
-    included_rule_ids: list[str] | None
-    created_by: uuid.UUID | None
     created_at: datetime
-    locked_at: datetime | None
-    rule_count: int = 0
-    approved_count: int = 0
+
+
+class ProfileRuleResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    profile_id: uuid.UUID
+    policy_rule_id: uuid.UUID
+    component_type: str
+    evaluation_code: str | None
+    remediation_code: str | None
+    rollback_code: str | None
+    code_status: str
+    risk_score: float
+    created_at: datetime
+    updated_at: datetime
+    # Denormalised from the linked PolicyRule for convenient display
+    rule_title: str | None = None
+    rule_short_id: str | None = None
+
+
+class ProfileRuleCodeUpdate(BaseModel):
+    evaluation_code: str | None = None
+    remediation_code: str | None = None
+    rollback_code: str | None = None
+
+
+class HITLCommentCreate(BaseModel):
+    comment_text: str
+    comment_type: str = "review"
+
+
+class HITLCommentResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    profile_rule_id: uuid.UUID
+    author_id: uuid.UUID | None
+    comment_text: str
+    comment_type: str
+    created_at: datetime
+
+
+class CodeGenRequest(BaseModel):
+    rule_ids: list[uuid.UUID] | None = None  # None = generate all pending
